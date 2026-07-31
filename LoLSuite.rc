@@ -1,0 +1,56 @@
+#pragma code_page(65001)
+
+#include "resource.h"
+#include <windows.h>
+
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+// -------------------------
+// String resources
+// -------------------------
+STRINGTABLE
+BEGIN
+    IDS_APP_TITLE           "LoLSuite"
+END
+
+// -------------------------
+// Icons & binary resources
+// -------------------------
+IDI_APP_ICON ICON "icon.ico"
+
+// -------------------------
+// Version information
+// -------------------------
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION     1,0,0,0
+ PRODUCTVERSION  1,0,0,0
+ FILEFLAGSMASK   0x3fL
+#ifdef _DEBUG
+ FILEFLAGS       0x1L
+#else
+ FILEFLAGS       0x0L
+#endif
+ FILEOS          0x40004L
+ FILETYPE        0x1L
+ FILESUBTYPE     0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"   // English (US), Unicode
+        BEGIN
+            VALUE "CompanyName",      "lolsuite.org"
+            VALUE "FileDescription",  "Multi FPS Booster"
+            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "InternalName",     "LoLSuite.exe"
+            VALUE "LegalCopyright",   "Copyright (C) Elias Gudsson"
+            VALUE "OriginalFilename", "LoLSuite.exe"
+            VALUE "ProductName",      "LoLSuite"
+            VALUE "ProductVersion",   "1.0.0.0"
+        END
+    END
+
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200   // English (US), Unicode
+    END
+END
