@@ -19,7 +19,7 @@ std::error_code ec;
 static std::atomic<bool> g_isBusy = false;
 int cb_index = 0;
 std::vector<std::wstring> b(159);
-HWND hWnd, patch, listbox;
+HWND hWnd, patch, restore, listbox;
 HFONT font = CreateFont(-MulDiv(16, GetDpiForWindow(hWnd), 96), 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH | FF_SWISS, L"Segoe UI Variable");
 
 static std::wstring Join(const std::wstring& base, const std::wstring& addition) {
@@ -86,8 +86,8 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 	DWORD protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
 	WinHttpSetOption(hSession, WINHTTP_OPTION_SECURE_PROTOCOLS, &protocols, sizeof(protocols));
 
-	DWORD redirect = WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS;
-	WinHttpSetOption(hSession, WINHTTP_OPTION_REDIRECT_POLICY, &redirect, sizeof(redirect));
+	DWORD http2 = WINHTTP_PROTOCOL_FLAG_HTTP2;
+	WinHttpSetOption(hSession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &http2, sizeof(http2));
 
 	HINTERNET hConnect = WinHttpConnect(hSession, host, uc.nPort, 0);
 	if (!hConnect) {
@@ -99,16 +99,28 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 		hConnect,
 		L"GET",
 		path,
-		nullptr,
+		L"HTTP/2",
 		WINHTTP_NO_REFERER,
 		WINHTTP_DEFAULT_ACCEPT_TYPES,
-		(uc.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0
+		WINHTTP_FLAG_SECURE
 	);
 	if (!hRequest) {
 		WinHttpCloseHandle(hConnect);
 		WinHttpCloseHandle(hSession);
 		return false;
 	}
+
+	std::wstring headers =
+		L"Accept: */*\r\n"
+		L"Accept-Encoding: gzip, deflate\r\n"
+		L"Connection: keep-alive\r\n"
+		L"User-Agent: LoLSuite/1.0\r\n"
+		L"Range: bytes=0-\r\n";
+
+	WinHttpAddRequestHeaders(hRequest, headers.c_str(), (DWORD)-1, WINHTTP_ADDREQ_FLAG_ADD);
+
+	DWORD decompression = WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
+	WinHttpSetOption(hRequest, WINHTTP_OPTION_DECOMPRESSION, &decompression, sizeof(decompression));
 
 	if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, nullptr, 0, 0, 0) ||
 		!WinHttpReceiveResponse(hRequest, nullptr))
@@ -118,19 +130,6 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 		WinHttpCloseHandle(hSession);
 		return false;
 	}
-
-	DWORD size = 0;
-	DWORD sizeLen = sizeof(size);
-	WinHttpQueryHeaders(
-		hRequest,
-		WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER,
-		nullptr,
-		&size,
-		&sizeLen,
-		nullptr
-	);
-
-	const bool hasSize = (size > 0);
 
 	std::ofstream out(outputPath, std::ios::binary | std::ios::trunc);
 	if (!out.is_open()) {
@@ -142,22 +141,15 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 
 	BYTE buffer[8192];
 	DWORD bytesRead = 0;
-	uint64_t totalRead = 0;
 
 	while (WinHttpReadData(hRequest, buffer, sizeof(buffer), &bytesRead) && bytesRead > 0)
-	{
 		out.write(reinterpret_cast<char*>(buffer), bytesRead);
-		totalRead += bytesRead;
-	}
 
 	out.close();
 
 	WinHttpCloseHandle(hRequest);
 	WinHttpCloseHandle(hConnect);
 	WinHttpCloseHandle(hSession);
-
-	ec.clear();
-	std::filesystem::remove(outputPath.wstring() + L":Zone.Identifier", ec);
 
 	return true;
 }
@@ -839,7 +831,7 @@ void gamec() {
 
 		const auto file = tmp / L"vcredist_x86.exe";
 
-		download(L"https://download.microsoft.com/download/8/b/4/8b42259f-5d70-43f4-ac2e-4b208fd8d66a/vcredist_x64.EXE", file.c_str(), true);
+		download(L"DX/vcredist_x64.EXE", file.c_str());
 		runEx(file.c_str(), { .wait = true, .checkExit = true, .hidden = true, .params = L" /q /r:n" });
 
 			constexpr int baseIndex = 0;
@@ -1029,13 +1021,13 @@ void gamec() {
 		service(L"W32Time", true);
 		shell({
 	L"Get-ChildItem -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches' | ForEach-Object { $subkeyPath = $_.PsPath; $values = (Get-ItemProperty -Path $subkeyPath | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name); foreach ($val in $values) { if ($val -like 'StateFlags*') { Remove-ItemProperty -Path $subkeyPath -Name $val -ErrorAction SilentlyContinue } }; New-ItemProperty -Path $subkeyPath -Name 'StateFlags0001' -Value 2 -PropertyType DWord -Force }; Start-Process -FilePath 'cleanmgr' -ArgumentList '/sagerun:1'",
-	L"wsreset -i",
+	L"wsreset.exe",
 	L"w32tm /resync",
 	L"netsh int ip reset",
 	L"netsh winsock reset",
-	L"netsh interface ip delete arpcache",
+	L"arp -d *",
 	L"netsh winhttp reset proxy",
-	L"Get-EventLog -LogName \"*\" | ForEach-Object { Clear-EventLog -LogName $_.Log }",
+	L"Get-EventLog -List | ForEach-Object { Clear-EventLog $_.Log }",
 	L"ie4uinit -ClearIconCache",
 	L"powercfg -restoredefaultschemes",
 	L"Add-WindowsCapability -Online -Name NetFx3~~~~",
@@ -1239,7 +1231,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 				{
 					manage(gameKeys[index], rest);
 				}
-				if (index == 9)
+				if (index == 8)
 				{
 					gamec();
 				}
@@ -1283,6 +1275,7 @@ struct Layout {
 	static constexpr int BW = 63;
 	static constexpr int BS = 15;
 	static constexpr int xPatch = BS;
+	static constexpr int xRestore = xPatch + BW + BS;
 	static constexpr int comboLeft = BS;
 	static constexpr int comboTop = TOP + CH + 10;
 	static constexpr int comboWidth = W - BS * 2;
@@ -1314,6 +1307,13 @@ int WINAPI wWinMain(
 		hWnd, HMENU(1), hInstance, nullptr
 	);
 
+	restore = CreateWindowEx(
+		0, L"BUTTON", L"Restore",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_OWNERDRAW | BS_PUSHBUTTON,
+		Layout::xRestore, Layout::TOP, Layout::BW, Layout::CH,
+		hWnd, HMENU(2), hInstance, nullptr
+	);
+
 	listbox = CreateWindowEx(
 		0, WC_COMBOBOX, nullptr,
 		CBS_DROPDOWN | WS_CHILD | WS_VISIBLE | WS_VSCROLL,
@@ -1325,7 +1325,7 @@ int WINAPI wWinMain(
 	gen_shortcut();
 	CoUninitialize();
 
-	for (HWND h : {patch, listbox})
+	for (HWND h : {patch, restore,  listbox})
 		SendMessage(h, WM_SETFONT, (WPARAM)font, TRUE);
 
 	for (LPCWSTR s : {

@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="LoLSuite-GUI.vcxproj" Id="eed924f7-1392-42f2-ba13-d917ed5165dd" />
+</Solution>
