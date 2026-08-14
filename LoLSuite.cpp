@@ -20,21 +20,27 @@ static std::atomic<bool> g_isBusy = false;
 int cb_index = 0;
 std::vector<std::wstring> b(159);
 HWND hWnd, patch, restore, listbox;
-HFONT font = CreateFont(-MulDiv(16, GetDpiForWindow(hWnd), 96), 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH | FF_SWISS, L"Segoe UI Variable");
+HFONT font = CreateFont(-MulDiv(16, GetDpiForWindow(hWnd), 96), 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
+                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                        VARIABLE_PITCH | FF_SWISS, L"Segoe UI Variable");
 
-static std::wstring Join(const std::wstring& base, const std::wstring& addition) {
+static std::wstring Join(const std::wstring& base, const std::wstring& addition)
+{
 	return (std::filesystem::path(base) / addition).wstring();
 }
 
-static void Append(int index, const std::wstring& addition) {
+static void Append(int index, const std::wstring& addition)
+{
 	b[index] = Join(b[index], addition);
 }
 
-static void Combine(int destIndex, int srcIndex, const std::wstring& addition) {
+static void Combine(int destIndex, int srcIndex, const std::wstring& addition)
+{
 	b[destIndex] = Join(b[srcIndex], addition);
 }
 
-static void Combine(int destIndex, const std::filesystem::path& src, const std::wstring& addition) {
+static void Combine(int destIndex, const std::filesystem::path& src, const std::wstring& addition)
+{
 	b[destIndex] = Join(src, addition);
 }
 
@@ -76,8 +82,8 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 	HINTERNET hSession = WinHttpOpen(
 		L"LoLSuite/1.0",
 		WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-		WINHTTP_NO_PROXY_NAME,
-		WINHTTP_NO_PROXY_BYPASS,
+		nullptr,
+		nullptr,
 		0
 	);
 	if (!hSession)
@@ -90,7 +96,8 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 	WinHttpSetOption(hSession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &http2, sizeof(http2));
 
 	HINTERNET hConnect = WinHttpConnect(hSession, host, uc.nPort, 0);
-	if (!hConnect) {
+	if (!hConnect)
+	{
 		WinHttpCloseHandle(hSession);
 		return false;
 	}
@@ -100,11 +107,12 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 		L"GET",
 		path,
 		L"HTTP/2",
-		WINHTTP_NO_REFERER,
-		WINHTTP_DEFAULT_ACCEPT_TYPES,
+		nullptr,
+		nullptr,
 		WINHTTP_FLAG_SECURE
 	);
-	if (!hRequest) {
+	if (!hRequest)
+	{
 		WinHttpCloseHandle(hConnect);
 		WinHttpCloseHandle(hSession);
 		return false;
@@ -117,12 +125,12 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 		L"User-Agent: LoLSuite/1.0\r\n"
 		L"Range: bytes=0-\r\n";
 
-	WinHttpAddRequestHeaders(hRequest, headers.c_str(), (DWORD)-1, WINHTTP_ADDREQ_FLAG_ADD);
+	WinHttpAddRequestHeaders(hRequest, headers.c_str(), static_cast<DWORD>(-1), WINHTTP_ADDREQ_FLAG_ADD);
 
 	DWORD decompression = WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
 	WinHttpSetOption(hRequest, WINHTTP_OPTION_DECOMPRESSION, &decompression, sizeof(decompression));
 
-	if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, nullptr, 0, 0, 0) ||
+	if (!WinHttpSendRequest(hRequest, nullptr, 0, nullptr, 0, 0, 0) ||
 		!WinHttpReceiveResponse(hRequest, nullptr))
 	{
 		WinHttpCloseHandle(hRequest);
@@ -132,7 +140,8 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 	}
 
 	std::ofstream out(outputPath, std::ios::binary | std::ios::trunc);
-	if (!out.is_open()) {
+	if (!out.is_open())
+	{
 		WinHttpCloseHandle(hRequest);
 		WinHttpCloseHandle(hConnect);
 		WinHttpCloseHandle(hSession);
@@ -165,7 +174,8 @@ bool gen_shortcut()
 	wchar_t exePath[MAX_PATH + 1];
 	GetModuleFileName(nullptr, exePath, MAX_PATH + 1);
 	IShellLinkW* link = nullptr;
-	hr = CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_IShellLinkW, reinterpret_cast<void**>(&link));
+	hr = CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_IShellLinkW,
+	                      reinterpret_cast<void**>(&link));
 	if (FAILED(hr)) return false;
 	link->SetPath(exePath);
 	link->SetArguments(L"");
@@ -173,7 +183,8 @@ bool gen_shortcut()
 	link->SetIconLocation(exePath, 0);
 	IPersistFile* file = nullptr;
 	hr = link->QueryInterface(IID_IPersistFile, reinterpret_cast<void**>(&file));
-	if (FAILED(hr)) {
+	if (FAILED(hr))
+	{
 		link->Release();
 		return false;
 	}
@@ -189,18 +200,20 @@ bool term(const std::wstring& processName)
 	if (snapshot == INVALID_HANDLE_VALUE)
 		return false;
 
-	PROCESSENTRY32 entry{ sizeof(entry) };
+	PROCESSENTRY32 entry{sizeof(entry)};
 
-	if (!Process32First(snapshot, &entry)) {
+	if (!Process32First(snapshot, &entry))
+	{
 		CloseHandle(snapshot);
 		return false;
 	}
 
-	do {
-		if (_wcsicmp(entry.szExeFile, processName.c_str()) == 0) {
-
+	do
+	{
+		if (_wcsicmp(entry.szExeFile, processName.c_str()) == 0)
+		{
 			HANDLE hProc = OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_INFORMATION |
-				PROCESS_VM_READ, FALSE, entry.th32ProcessID);
+			                           PROCESS_VM_READ, FALSE, entry.th32ProcessID);
 
 			if (!hProc)
 				continue;
@@ -214,7 +227,8 @@ bool term(const std::wstring& processName)
 
 			CloseHandle(hProc);
 		}
-	} while (Process32Next(snapshot, &entry));
+	}
+	while (Process32Next(snapshot, &entry));
 
 	CloseHandle(snapshot);
 	return true;
@@ -223,14 +237,16 @@ bool term(const std::wstring& processName)
 bool x64()
 {
 	USHORT processMachine = 0, nativeMachine = 0;
-	auto fn = reinterpret_cast<BOOL(WINAPI*)(HANDLE, USHORT*, USHORT*)>(GetProcAddress(GetModuleHandle(L"kernel32.dll"), "IsWow64Process2"));
+	auto fn = reinterpret_cast<BOOL(WINAPI*)(HANDLE, USHORT*, USHORT*)>(GetProcAddress(
+		GetModuleHandle(L"kernel32.dll"), "IsWow64Process2"));
 
 	if (fn && fn(GetCurrentProcess(), &processMachine, &nativeMachine))
 		return nativeMachine == IMAGE_FILE_MACHINE_AMD64 ||
-		nativeMachine == IMAGE_FILE_MACHINE_ARM64;
+			nativeMachine == IMAGE_FILE_MACHINE_ARM64;
 
 	BOOL wow = FALSE;
-	auto fn2 = reinterpret_cast<BOOL(WINAPI*)(HANDLE, PBOOL)>(GetProcAddress(GetModuleHandle(L"kernel32.dll"), "IsWow64Process"));
+	auto fn2 = reinterpret_cast<BOOL(WINAPI*)(HANDLE, PBOOL)>(GetProcAddress(
+		GetModuleHandle(L"kernel32.dll"), "IsWow64Process"));
 	if (fn2 && fn2(GetCurrentProcess(), &wow))
 		return wow;
 
@@ -286,7 +302,7 @@ bool runEx(const std::wstring& file, const RunOptions& opt)
 
 void runProcess(const std::wstring& exe, const std::wstring& args, bool wait)
 {
-	STARTUPINFOW si{ sizeof(si) };
+	STARTUPINFOW si{sizeof(si)};
 	PROCESS_INFORMATION pi{};
 	std::wstring cmd = exe + L" " + args;
 
@@ -294,7 +310,7 @@ void runProcess(const std::wstring& exe, const std::wstring& args, bool wait)
 	buf.push_back(L'\0');
 
 	if (!CreateProcess(nullptr, buf.data(), nullptr, nullptr, FALSE,
-		CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+	                   CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
 		return;
 
 	if (wait)
@@ -308,7 +324,8 @@ void runProcess(const std::wstring& exe, const std::wstring& args, bool wait)
 void shell(const std::vector<std::wstring>& commands)
 {
 	std::wstring script;
-	for (auto& c : commands) {
+	for (auto& c : commands)
+	{
 		std::wstring safe = c;
 		std::ranges::replace(safe, L'"', L'`"');
 		script += safe + L"; ";
@@ -322,14 +339,14 @@ void shell(const std::vector<std::wstring>& commands)
 }
 
 
-
 std::wstring folder(const std::wstring& pathLabel)
 {
 	const std::filesystem::path iniPath = std::filesystem::current_path() / L"LoLSuite.ini";
 	wchar_t saved[MAX_PATH + 1]{};
 	GetPrivateProfileString(pathLabel.c_str(), L"path", L"", saved, MAX_PATH, iniPath.c_str());
 
-	if (saved[0] != L'\0') {
+	if (saved[0] != L'\0')
+	{
 		b[0] = saved;
 		return b[0];
 	}
@@ -352,11 +369,14 @@ std::wstring folder(const std::wstring& pathLabel)
 			dlg->GetOptions(&opts);
 			dlg->SetOptions(opts | FOS_PICKFOLDERS);
 
-			if (SUCCEEDED(dlg->Show(nullptr))) {
+			if (SUCCEEDED(dlg->Show(nullptr)))
+			{
 				IShellItem* item = nullptr;
-				if (SUCCEEDED(dlg->GetResult(&item))) {
+				if (SUCCEEDED(dlg->GetResult(&item)))
+				{
 					PWSTR psz = nullptr;
-					if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &psz))) {
+					if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &psz)))
+					{
 						selected = psz;
 						CoTaskMemFree(psz);
 					}
@@ -369,7 +389,8 @@ std::wstring folder(const std::wstring& pathLabel)
 
 	CoUninitialize();
 
-	if (!selected.empty()) {
+	if (!selected.empty())
+	{
 		b[0] = selected;
 		WritePrivateProfileString(
 			pathLabel.c_str(), L"path",
@@ -380,9 +401,12 @@ std::wstring folder(const std::wstring& pathLabel)
 	return b[0];
 }
 
-static void service(const std::wstring& serviceName, bool start, bool restart = false) {
-	struct ServiceHandleDeleter {
-		void operator()(SC_HANDLE h) const {
+static void service(const std::wstring& serviceName, bool start, bool restart = false)
+{
+	struct ServiceHandleDeleter
+	{
+		void operator()(SC_HANDLE h) const
+		{
 			if (h) CloseServiceHandle(h);
 		}
 	};
@@ -390,24 +414,31 @@ static void service(const std::wstring& serviceName, bool start, bool restart = 
 	ServiceHandle scm(OpenSCManager(nullptr, nullptr, SC_MANAGER_ALL_ACCESS));
 	ServiceHandle svc(OpenService(scm.get(), serviceName.c_str(), SERVICE_START | SERVICE_STOP | SERVICE_QUERY_STATUS));
 
-	auto stopService = [&](SC_HANDLE h) {
+	auto stopService = [&](SC_HANDLE h)
+	{
 		SERVICE_STATUS status{};
-		if (ControlService(h, SERVICE_CONTROL_STOP, &status)) {
-			do {
+		if (ControlService(h, SERVICE_CONTROL_STOP, &status))
+		{
+			do
+			{
 				std::this_thread::sleep_for(std::chrono::milliseconds(300));
 				if (!QueryServiceStatus(h, &status)) break;
-			} while (status.dwCurrentState != SERVICE_STOPPED);
+			}
+			while (status.dwCurrentState != SERVICE_STOPPED);
 		}
-		};
+	};
 
-	if (restart) {
+	if (restart)
+	{
 		stopService(svc.get());
 		StartService(svc.get(), 0, nullptr);
 	}
-	else if (start) {
+	else if (start)
+	{
 		StartService(svc.get(), 0, nullptr);
 	}
-	else {
+	else
+	{
 		stopService(svc.get());
 	}
 }
@@ -417,51 +448,59 @@ bool desktop_clear()
 {
 	SHEmptyRecycleBin(nullptr, nullptr, SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI | SHERB_NOSOUND);
 
-	if (OpenClipboard(nullptr)) {
+	if (OpenClipboard(nullptr))
+	{
 		EmptyClipboard();
-		if (HGLOBAL h = GlobalAlloc(GMEM_MOVEABLE, sizeof(wchar_t))) {
-			if (auto p = static_cast<wchar_t*>(GlobalLock(h))) {
+		if (HGLOBAL h = GlobalAlloc(GMEM_MOVEABLE, sizeof(wchar_t)))
+		{
+			if (auto p = static_cast<wchar_t*>(GlobalLock(h)))
+			{
 				*p = L'\0';
 				GlobalUnlock(h);
 				SetClipboardData(CF_UNICODETEXT, h);
 			}
-			else {
+			else
+			{
 				GlobalFree(h);
 			}
 		}
 		CloseClipboard();
 	}
 
-	auto rm = [&](auto&& path) {
+	auto rm = [&](auto&& path)
+	{
 		ec.clear();
 		std::filesystem::remove_all(path, ec);
-		};
+	};
 
-	auto rmf = [&](auto&& path) {
+	auto rmf = [&](auto&& path)
+	{
 		ec.clear();
 		std::filesystem::remove(path, ec);
-		};
+	};
 
 	wchar_t buf[MAX_PATH + 1];
 
 	if (GetTempPath(MAX_PATH + 1, buf))
 		rm(buf);
 
-	if (GetWindowsDirectory(buf, MAX_PATH + 1)) {
+	if (GetWindowsDirectory(buf, MAX_PATH + 1))
+	{
 		rm(std::filesystem::path(buf) / L"Temp");
 		rm(std::filesystem::path(buf) / L"Prefetch");
 	}
 	wchar_t* appdata = nullptr;
 	size_t len = 0;
-	if (_wdupenv_s(&appdata, &len, L"APPDATA") == 0 && appdata) {
+	if (_wdupenv_s(&appdata, &len, L"APPDATA") == 0 && appdata)
+	{
 		rm(std::filesystem::path(appdata) / L"Microsoft\\Windows\\Recent");
 		free(appdata);
 	}
 
 	ec.clear();
 	for (auto& p : std::filesystem::recursive_directory_iterator(
-		std::filesystem::temp_directory_path(),
-		std::filesystem::directory_options::skip_permission_denied, ec))
+		     std::filesystem::temp_directory_path(),
+		     std::filesystem::directory_options::skip_permission_denied, ec))
 	{
 		if (p.is_regular_file(ec) && p.path().extension() == L".log")
 			rmf(p.path());
@@ -476,7 +515,8 @@ bool desktop_clear()
 	}
 
 	wchar_t lad[MAX_PATH + 1];
-	if (SHGetFolderPath(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, lad) == S_OK) {
+	if (SHGetFolderPath(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, lad) == S_OK)
+	{
 		rmf(std::filesystem::path(lad) / L"IconCache.db");
 
 		std::filesystem::path explorer = std::filesystem::path(lad) / L"Microsoft\\Windows\\Explorer";
@@ -487,11 +527,16 @@ bool desktop_clear()
 			L"ExplorerStartupLog*.etl"
 		};
 
-		for (auto pat : patterns) {
+		for (auto pat : patterns)
+		{
 			WIN32_FIND_DATAW fd;
 			HANDLE h = FindFirstFile((explorer / pat).c_str(), &fd);
-			if (h != INVALID_HANDLE_VALUE) {
-				do rmf(explorer / fd.cFileName);
+			if (h != INVALID_HANDLE_VALUE)
+			{
+				do
+				{
+					rmf(explorer / fd.cFileName);
+				}
 				while (FindNextFile(h, &fd));
 				FindClose(h);
 			}
@@ -501,7 +546,8 @@ bool desktop_clear()
 	return true;
 }
 
-struct FileOp {
+struct FileOp
+{
 	int dstId;
 	int srcId;
 	std::wstring relativePath;
@@ -509,7 +555,8 @@ struct FileOp {
 	std::wstring restorePath;
 };
 
-struct GameConfig {
+struct GameConfig
+{
 	std::wstring name;
 	std::wstring baseDir;
 	std::vector<std::wstring> processes;
@@ -523,9 +570,13 @@ void Patch(const GameConfig& config, bool restore)
 {
 	folder(config.baseDir);
 
-	for (auto it = std::filesystem::recursive_directory_iterator(config.baseDir, std::filesystem::directory_options::skip_permission_denied, ec); it != std::filesystem::recursive_directory_iterator(); it.increment(ec))
+	for (auto it = std::filesystem::recursive_directory_iterator(config.baseDir,
+	                                                             std::filesystem::directory_options::skip_permission_denied,
+	                                                             ec); it !=
+	     std::filesystem::recursive_directory_iterator(); it.increment(ec))
 	{
-		if (ec) {
+		if (ec)
+		{
 			ec.clear();
 			continue;
 		}
@@ -567,14 +618,15 @@ void Patch(const GameConfig& config, bool restore)
 		download(url, outputPath);
 	}
 
-	runEx(config.steamUrl, { .wait = false, .params = L"" });
+	runEx(config.steamUrl, {.wait = false, .params = L""});
 }
 
-static GameConfig Dota2() {
+static GameConfig Dota2()
+{
 	return {
 		L"dota2",
 		L"<drive>:\\Program Files (x86)\\Steam\\steamapps\\common\\dota 2 beta",
-		{ L"dota2.exe" },
+		{L"dota2.exe"},
 		{
 			{8, 0, L"game\\bin\\win64"},
 			{1, 8, L"embree3.dll"},
@@ -588,11 +640,12 @@ static GameConfig Dota2() {
 	};
 }
 
-static GameConfig Smite2() {
+static GameConfig Smite2()
+{
 	return {
 		L"smite2",
 		L"<drive>:\\Program Files (x86)\\Steam\\steamapps\\common\\SMITE2",
-		{ L"Hemingway.exe", L"Hemingway-Win64-Shipping.exe" },
+		{L"Hemingway.exe", L"Hemingway-Win64-Shipping.exe"},
 		{
 			{8, 0, L"Windows\\Engine\\Binaries\\Win64"},
 			{7, 0, L"Windows\\Hemingway\\Binaries\\Win64"},
@@ -611,11 +664,15 @@ static GameConfig Smite2() {
 	};
 }
 
-static GameConfig MGS() {
+static GameConfig MGS()
+{
 	return {
 		L"mgs",
 		L"<drive>:\Program Files (x86)\Steam\steamapps\common\MGSDelta",
-		{ L"MGSDelta.exe", L"MGSDelta-Win64-Shipping.exe", L"Nightmare-Win64-Shipping.exe", L"Foxhunt-Win64-Shipping.exe"},
+		{
+			L"MGSDelta.exe", L"MGSDelta-Win64-Shipping.exe", L"Nightmare-Win64-Shipping.exe",
+			L"Foxhunt-Win64-Shipping.exe"
+		},
 		{
 			{9, 0, L"MGSDelta_Foxhunt\\Binaries\\Win64"},
 			{8, 0, L"MGSDelta\\Binaries\\Win64"},
@@ -645,11 +702,12 @@ static GameConfig MGS() {
 	};
 }
 
-static GameConfig Blands4() {
+static GameConfig Blands4()
+{
 	return {
 		L"blands4",
 		L"<drive>:\\Program Files (x86)\\Steam\\steamapps\\common\\Borderlands 4",
-		{ L"Borderlands4.exe", L"Borderlands4-Win64-Shipping.exe", L"BL4Launcher.exe" },
+		{L"Borderlands4.exe", L"Borderlands4-Win64-Shipping.exe", L"BL4Launcher.exe"},
 		{
 			{8, 0, L"OakGame\\Binaries\\Win64"},
 			{7, 0, L"Engine\\Binaries\\Win64"},
@@ -668,11 +726,12 @@ static GameConfig Blands4() {
 	};
 }
 
-static GameConfig OblivionR() {
+static GameConfig OblivionR()
+{
 	return {
 		L"oblivionr",
 		L"<drive>:\\Program Files (x86)\\Steam\\steamapps\\common\\The Elder Scrolls IV - Oblivion Remastered",
-		{ L"OblivionRemastered.exe", L"OblivionRemastered-Win64-Shipping.exe" },
+		{L"OblivionRemastered.exe", L"OblivionRemastered-Win64-Shipping.exe"},
 		{
 			{8, 0, L"OblivionRemastered\\Binaries\\Win64"},
 			{7, 0, L"Engine\\Binaries\\Win64"},
@@ -693,11 +752,12 @@ static GameConfig OblivionR() {
 	};
 }
 
-static GameConfig SilentHillF() {
+static GameConfig SilentHillF()
+{
 	return {
 		L"silenthillf",
 		L"<drive>:\\Program Files (x86)\\Steam\\steamapps\\common\\SILENT HILL f",
-		{ L"SHf-Win64-Shipping.exe", L"SHf.exe"},
+		{L"SHf-Win64-Shipping.exe", L"SHf.exe"},
 		{
 			{8, 0, L"SHf\\Binaries\\Win64"},
 			{7, 0, L"Engine\\Binaries\\Win64"},
@@ -718,11 +778,12 @@ static GameConfig SilentHillF() {
 	};
 }
 
-static GameConfig Outworlds2() {
+static GameConfig Outworlds2()
+{
 	return {
 		L"outworlds2",
 		L"<drive>:\\Program Files (x86)\\Steam\\steamapps\\common\\The Outer Worlds 2",
-		{ L"TheOuterWorlds2-Win64-Shipping.exe", L"TheOuterWorlds2.exe"},
+		{L"TheOuterWorlds2-Win64-Shipping.exe", L"TheOuterWorlds2.exe"},
 		{
 			{8, 0, L"Arkansas\\Binaries\\Win64"},
 			{1, 8, L"tbb.dll"},
@@ -739,18 +800,20 @@ static GameConfig Outworlds2() {
 }
 
 static const std::unordered_map<std::wstring, GameConfig(*)()> gameMap = {
-	{ L"dota2", Dota2 },
-	{ L"smite2", Smite2 },
-	{ L"mgs", MGS },
-	{ L"blands4", Blands4 },
-	{ L"oblivionr", OblivionR },
-	{ L"silenthillf", SilentHillF },
-	{ L"outworlds2", Outworlds2 }
+	{L"dota2", Dota2},
+	{L"smite2", Smite2},
+	{L"mgs", MGS},
+	{L"blands4", Blands4},
+	{L"oblivionr", OblivionR},
+	{L"silenthillf", SilentHillF},
+	{L"outworlds2", Outworlds2}
 };
 
-static void manage(const std::wstring& game, bool restore) {
+static void manage(const std::wstring& game, bool restore)
+{
 	auto it = gameMap.find(game);
-	if (it != gameMap.end()) {
+	if (it != gameMap.end())
+	{
 		Patch(it->second(), restore);
 	}
 
@@ -762,7 +825,10 @@ static void manage(const std::wstring& game, bool restore) {
 		}
 		else
 		{
-			for (const auto& proc : { L"Minecraft.exe", L"MinecraftLauncher.exe", L"javaw.exe", L"MinecraftServer.exe", L"java.exe", L"Minecraft.Windows.exe" }) term(proc);
+			for (const auto& proc : {
+				     L"Minecraft.exe", L"MinecraftLauncher.exe", L"javaw.exe", L"MinecraftServer.exe", L"java.exe",
+				     L"Minecraft.Windows.exe"
+			     }) term(proc);
 			char appdata[MAX_PATH + 1];
 			size_t size = 0;
 			getenv_s(&size, appdata, MAX_PATH + 1, "APPDATA");
@@ -771,14 +837,18 @@ static void manage(const std::wstring& game, bool restore) {
 			configPath /= "launcher_profiles.json";
 			std::vector<std::wstring> cmds;
 			cmds.push_back(L"winget uninstall Mojang.MinecraftLauncher --purge");
-			for (auto* v : { L"JavaRuntimeEnvironment", L"JDK.17", L"JDK.18", L"JDK.19", L"JDK.20", L"JDK.21", L"JDK.22", L"JDK.23", L"JDK.24", L"JDK.25" })
+			for (auto* v : {
+				     L"JavaRuntimeEnvironment", L"JDK.17", L"JDK.18", L"JDK.19", L"JDK.20", L"JDK.21", L"JDK.22",
+				     L"JDK.23", L"JDK.24", L"JDK.25"
+			     })
 			{
 				cmds.push_back(L"winget uninstall Oracle." + std::wstring(v) + L" --purge");
 			}
 			cmds.push_back(L"winget install Oracle.JDK.26 --accept-package-agreements");
 			cmds.push_back(L"winget install Mojang.MinecraftLauncher");
 			shell(cmds);
-			runEx(L"C:\\Program Files (x86)\\Minecraft Launcher\\MinecraftLauncher.exe", { .wait = false, .params = L"" });
+			runEx(L"C:\\Program Files (x86)\\Minecraft Launcher\\MinecraftLauncher.exe",
+			      {.wait = false, .params = L""});
 			while (!std::filesystem::exists(configPath)) std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			std::wifstream in(configPath);
 			in.imbue(std::locale("en_US.UTF-8"));
@@ -787,16 +857,21 @@ static void manage(const std::wstring& game, bool restore) {
 			std::wstring updated;
 			std::wstringstream ss(config);
 			std::wstring line;
-			while (std::getline(ss, line)) {
-				if (line.find(L"\"javaDir\"") == std::wstring::npos && line.find(L"\"skipJreVersionCheck\"") == std::wstring::npos)
+			while (std::getline(ss, line))
+			{
+				if (line.find(L"\"javaDir\"") == std::wstring::npos && line.find(L"\"skipJreVersionCheck\"") ==
+					std::wstring::npos)
 					updated += line + L"\n";
 			}
 			std::wstring jdkpath = L"C:\\\\Program Files\\\\Java\\\\jdk-26.0.2\\\\bin\\\\javaw.exe";
-			for (auto& type : { L"\"type\" : \"latest-release\"", L"\"type\" : \"latest-snapshot\"" }) {
+			for (auto& type : {L"\"type\" : \"latest-release\"", L"\"type\" : \"latest-snapshot\""})
+			{
 				size_t pos = updated.find(type);
-				if (pos != std::wstring::npos) {
+				if (pos != std::wstring::npos)
+				{
 					size_t start = updated.rfind(L'\n', pos);
-					if (start != std::wstring::npos) updated.insert(start + 1, L"      \"skipJreVersionCheck\" : true,\n");
+					if (start != std::wstring::npos) updated.insert(
+						start + 1, L"      \"skipJreVersionCheck\" : true,\n");
 					size_t javaDirPos = pos;
 					for (int i = 0; i < 4 && javaDirPos != std::wstring::npos; ++i)
 						javaDirPos = updated.rfind(L'\n', javaDirPos - 1);
@@ -808,22 +883,32 @@ static void manage(const std::wstring& game, bool restore) {
 			out.imbue(std::locale("en_US.UTF-8"));
 			out << updated;
 			out.close();
-			for (const auto& proc : { L"Minecraft.exe", L"MinecraftLauncher.exe", L"java.exe", L"javaw.exe", L"MinecraftServer.exe", L"Minecraft.Windows.exe" })
+			for (const auto& proc : {
+				     L"Minecraft.exe", L"MinecraftLauncher.exe", L"java.exe", L"javaw.exe", L"MinecraftServer.exe",
+				     L"Minecraft.Windows.exe"
+			     })
 			{
 				term(proc);
 			}
-			runEx(L"C:\\Program Files (x86)\\Minecraft Launcher\\MinecraftLauncher.exe", { .wait = false, .params = L"" });
+			runEx(L"C:\\Program Files (x86)\\Minecraft Launcher\\MinecraftLauncher.exe",
+			      {.wait = false, .params = L""});
 		}
 	}
 }
-void gamec() {
+
+void gamec()
+{
 	if (!checkUAC())
 	{
 		MessageBox(hWnd, L"Run LoLSuite as admin", L"LoLSuite", MB_OK);
 	}
 	else
 	{
-		for (const auto& proc : { L"cmd.exe", L"DXSETUP.exe", L"pwsh.exe", L"powershell.exe", L"cleanmgr.exe", L"WindowsTerminal.exe", L"OpenConsole.exe", L"wt.exe", L"Battle.net.exe", L"steam.exe", L"Origin.exe", L"EADesktop.exe", L"EpicGamesLauncher.exe"}) term(proc);
+		for (const auto& proc : {
+			     L"cmd.exe", L"DXSETUP.exe", L"pwsh.exe", L"powershell.exe", L"cleanmgr.exe", L"WindowsTerminal.exe",
+			     L"OpenConsole.exe", L"wt.exe", L"Battle.net.exe", L"steam.exe", L"Origin.exe", L"EADesktop.exe",
+			     L"EpicGamesLauncher.exe"
+		     }) term(proc);
 		std::filesystem::path tmp = std::filesystem::current_path() / "tmp";
 		ec.clear();
 		std::filesystem::remove_all(tmp, ec);
@@ -832,10 +917,10 @@ void gamec() {
 		const auto file = tmp / L"vcredist_x86.exe";
 
 		download(L"DX/vcredist_x64.EXE", file.c_str());
-		runEx(file.c_str(), { .wait = true, .checkExit = true, .hidden = true, .params = L" /q /r:n" });
+		runEx(file.c_str(), {.wait = true, .checkExit = true, .hidden = true, .params = L" /q /r:n"});
 
-			constexpr int baseIndex = 0;
-			const std::vector<std::wstring> files = {
+		constexpr int baseIndex = 0;
+		const std::vector<std::wstring> files = {
 			L"Apr2005_d3dx9_25_x64.cab",
 			L"Apr2005_d3dx9_25_x86.cab",
 			L"Apr2006_d3dx9_30_x64.cab",
@@ -993,47 +1078,48 @@ void gamec() {
 			L"OCT2006_d3dx9_31_x86.cab",
 			L"OCT2006_XACT_x64.cab",
 			L"OCT2006_XACT_x86.cab"
-			};
+		};
 
-			for (size_t i = 0; i < files.size(); ++i)
-			{
-				const int idx = baseIndex + static_cast<int>(i);
+		for (size_t i = 0; i < files.size(); ++i)
+		{
+			const int idx = baseIndex + static_cast<int>(i);
 
-				b[idx].clear();
-				Combine(idx, tmp, files[i]);
+			b[idx].clear();
+			Combine(idx, tmp, files[i]);
 
-				const std::wstring url = L"DX/" + files[i];
-				download(url, b[idx]);
-			}
+			const std::wstring url = L"DX/" + files[i];
+			download(url, b[idx]);
+		}
 
-			bool allFilesPresent = std::all_of(files.begin(), files.end(),
-				[&](const std::wstring& f) {
-					size_t i = &f - &files[0];
-					return std::filesystem::exists(b[baseIndex + i]);
-				}
-			);
+		bool allFilesPresent = std::all_of(files.begin(), files.end(),
+		                                   [&](const std::wstring& f)
+		                                   {
+			                                   size_t i = &f - &files[0];
+			                                   return std::filesystem::exists(b[baseIndex + i]);
+		                                   }
+		);
 
-			if (allFilesPresent)
-				runEx(b[baseIndex + 63], { .wait = true, .params = L"/silent" });
+		if (allFilesPresent)
+			runEx(b[baseIndex + 63], {.wait = true, .params = L"/silent"});
 		ec.clear();
 		std::filesystem::remove_all(tmp, ec);
 
 		service(L"W32Time", true);
 		shell({
-	L"Get-ChildItem -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches' | ForEach-Object { $subkeyPath = $_.PsPath; $values = (Get-ItemProperty -Path $subkeyPath | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name); foreach ($val in $values) { if ($val -like 'StateFlags*') { Remove-ItemProperty -Path $subkeyPath -Name $val -ErrorAction SilentlyContinue } }; New-ItemProperty -Path $subkeyPath -Name 'StateFlags0001' -Value 2 -PropertyType DWord -Force }; Start-Process -FilePath 'cleanmgr' -ArgumentList '/sagerun:1'",
-	L"wsreset.exe",
-	L"w32tm /resync",
-	L"netsh int ip reset",
-	L"netsh winsock reset",
-	L"arp -d *",
-	L"netsh winhttp reset proxy",
-	L"Get-EventLog -List | ForEach-Object { Clear-EventLog $_.Log }",
-	L"ie4uinit -ClearIconCache",
-	L"powercfg -restoredefaultschemes",
-	L"Add-WindowsCapability -Online -Name NetFx3~~~~",
-	L"Update-MpSignature -UpdateSource MicrosoftUpdateServer",
-	L"Update-Help -UICulture en-US -Force"
-			});
+			L"Get-ChildItem -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches' | ForEach-Object { $subkeyPath = $_.PsPath; $values = (Get-ItemProperty -Path $subkeyPath | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name); foreach ($val in $values) { if ($val -like 'StateFlags*') { Remove-ItemProperty -Path $subkeyPath -Name $val -ErrorAction SilentlyContinue } }; New-ItemProperty -Path $subkeyPath -Name 'StateFlags0001' -Value 2 -PropertyType DWord -Force }; Start-Process -FilePath 'cleanmgr' -ArgumentList '/sagerun:1'",
+			L"wsreset.exe",
+			L"w32tm /resync",
+			L"netsh int ip reset",
+			L"netsh winsock reset",
+			L"arp -d *",
+			L"netsh winhttp reset proxy",
+			L"Get-EventLog -List | ForEach-Object { Clear-EventLog $_.Log }",
+			L"ie4uinit -ClearIconCache",
+			L"powercfg -restoredefaultschemes",
+			L"Add-WindowsCapability -Online -Name NetFx3~~~~",
+			L"Update-MpSignature -UpdateSource MicrosoftUpdateServer",
+			L"Update-Help -UICulture en-US -Force"
+		});
 		if (IsWindows10OrGreater())
 		{
 			shell({
@@ -1041,37 +1127,49 @@ void gamec() {
 				L"sc config tzautoupdate start= auto",
 				L"sc config W32Time start= auto",
 				L"DISM /Online /Cleanup-Image /RestoreHealth"
-				});
+			});
 		}
 
 		service(L"tzautoupdate", true);
-		std::vector<std::wstring> services = { L"wuauserv", L"BITS", L"CryptSvc" };
+		std::vector<std::wstring> services = {L"wuauserv", L"BITS", L"CryptSvc"};
 		for (auto& s : services) service(s, false);
 		WCHAR winDir[MAX_PATH + 1];
-		if (GetWindowsDirectory(winDir, MAX_PATH + 1) > 0) {
+		if (GetWindowsDirectory(winDir, MAX_PATH + 1) > 0)
+		{
 			std::filesystem::remove_all(std::filesystem::path(winDir) / L"SoftwareDistribution");
 		}
 		for (auto& s : services)
 			service(s, true);
-		std::vector<std::wstring> apps = { L"Microsoft.OpenCLGLVulkanCompatibilityPack",L"Microsoft.VCRedist.2005.x86",
-			L"Microsoft.VCRedist.2008.x64", L"Microsoft.VCRedist.2008.x86", L"Microsoft.VCRedist.2010.x64", L"Microsoft.VCRedist.2010.x86", L"Microsoft.VCRedist.2012.x64",
-			L"Microsoft.VCRedist.2012.x86", L"Microsoft.VCRedist.2013.x64", L"Microsoft.VCRedist.2013.x86", L"Microsoft.VCRedist.2015+.x86", L"Microsoft.VCRedist.2015+.x64", L"Microsoft.PowerShell", L"Microsoft.WindowsTerminal", L"9MZPRTH5C0TB", L"9N4D0MSMP0PT", L"9N5TDP8VCMHS", L"9N95Q1ZZPMH4", L"9NCTDW2W1BH8", L"9PB0TRCNRHFX", L"9PCSD6N03BKV", L"9PG2DK419DRG", L"9PMMSR1CGPWG", L"Blizzard.BattleNet", L"ElectronicArts.EADesktop",
+		std::vector<std::wstring> apps = {
+			L"Microsoft.OpenCLGLVulkanCompatibilityPack", L"Microsoft.VCRedist.2005.x86",
+			L"Microsoft.VCRedist.2008.x64", L"Microsoft.VCRedist.2008.x86", L"Microsoft.VCRedist.2010.x64",
+			L"Microsoft.VCRedist.2010.x86", L"Microsoft.VCRedist.2012.x64",
+			L"Microsoft.VCRedist.2012.x86", L"Microsoft.VCRedist.2013.x64", L"Microsoft.VCRedist.2013.x86",
+			L"Microsoft.VCRedist.2015+.x86", L"Microsoft.VCRedist.2015+.x64", L"Microsoft.PowerShell",
+			L"Microsoft.WindowsTerminal", L"9MZPRTH5C0TB", L"9N4D0MSMP0PT", L"9N5TDP8VCMHS", L"9N95Q1ZZPMH4",
+			L"9NCTDW2W1BH8", L"9PB0TRCNRHFX", L"9PCSD6N03BKV", L"9PG2DK419DRG", L"9PMMSR1CGPWG", L"Blizzard.BattleNet",
+			L"ElectronicArts.EADesktop",
 			L"ElectronicArts.Origin", L"EpicGames.EpicGamesLauncher", L"Valve.Steam", L"Microsoft.EdgeWebView2Runtime"
 		};
 		std::vector<std::wstring> filteredApps;
-		for (const auto& app : apps) {
+		for (const auto& app : apps)
+		{
 			if (!x64() &&
 				app.find(L"Microsoft.VCRedist.") != std::wstring::npos &&
-				app.find(L".x64") != std::wstring::npos) {
+				app.find(L".x64") != std::wstring::npos)
+			{
 				continue;
 			}
 			filteredApps.push_back(app);
 		}
 		std::vector<std::wstring> uninstall, install;
-		for (auto& app : filteredApps) {
+		for (auto& app : filteredApps)
+		{
 			uninstall.push_back(L"winget uninstall " + app + L" --purge");
-			if (app != L"ElectronicArts.Origin") {
-				std::wstring cmd = L"winget install " + app + L" --accept-package-agreements --accept-source-agreements";
+			if (app != L"ElectronicArts.Origin")
+			{
+				std::wstring cmd = L"winget install " + app +
+					L" --accept-package-agreements --accept-source-agreements";
 				if (app == L"Blizzard.BattleNet") cmd += L" --location \"C:\\Battle.Net\"";
 				install.push_back(cmd);
 			}
@@ -1080,38 +1178,46 @@ void gamec() {
 		shell(install);
 
 		HMODULE dns = LoadLibrary(L"dnsapi.dll");
-		if (dns) {
+		if (dns)
+		{
 			using Fn = DWORD(WINAPI*)(PCWSTR);
 			auto flush = reinterpret_cast<Fn>(
 				GetProcAddress(dns, "DnsFlushResolverCacheEntry_W")
-				);
-			if (flush) {
+			);
+			if (flush)
+			{
 				flush(nullptr);
 			}
 			FreeLibrary(dns);
 		}
 
-		runEx(L"ipconfig", { .wait = true, .checkExit = true, .hidden = true, .params = L"/flushdns" });
-		runEx(L"ipconfig", { .wait = true, .checkExit = true, .hidden = true, .params = L"/registerdns" });
-		runEx(L"rundll32", { .wait = true, .checkExit = true, .hidden = true, .params = L"InetCpl.cpl,ClearMyTracksByProcess 4351"
-			});
-		for (const auto& proc : { L"firefox.exe", L"msedge.exe", L"chrome.exe", L"iexplore.exe", L"opera.exe" }) {
+		runEx(L"ipconfig", {.wait = true, .checkExit = true, .hidden = true, .params = L"/flushdns"});
+		runEx(L"ipconfig", {.wait = true, .checkExit = true, .hidden = true, .params = L"/registerdns"});
+		runEx(L"rundll32", {
+			      .wait = true, .checkExit = true, .hidden = true, .params = L"InetCpl.cpl,ClearMyTracksByProcess 4351"
+		      });
+		for (const auto& proc : {L"firefox.exe", L"msedge.exe", L"chrome.exe", L"iexplore.exe", L"opera.exe"})
+		{
 			term(proc);
 		}
 
-		auto CacheClear = [](const std::filesystem::path& path) {
-			if (std::filesystem::exists(path)) {
+		auto CacheClear = [](const std::filesystem::path& path)
+		{
+			if (std::filesystem::exists(path))
+			{
 				std::filesystem::remove_all(path);
 			}
-			};
-		auto getFolder = [](int csidl) -> std::optional<std::filesystem::path> {
+		};
+		auto getFolder = [](int csidl) -> std::optional<std::filesystem::path>
+		{
 			wchar_t buf[MAX_PATH + 1]{};
 			return SUCCEEDED(SHGetFolderPath(nullptr, csidl, nullptr, 0, buf))
-				? std::optional<std::filesystem::path>(buf)
-				: std::nullopt;
-			};
+				       ? std::optional<std::filesystem::path>(buf)
+				       : std::nullopt;
+		};
 
-		if (auto local = getFolder(CSIDL_LOCAL_APPDATA)) {
+		if (auto local = getFolder(CSIDL_LOCAL_APPDATA))
+		{
 			const std::vector<std::wstring> Chromium = {
 				L"Microsoft/Edge", L"Microsoft/Edge Beta", L"Microsoft/Edge Dev", L"Microsoft/Edge SxS",
 				L"Google/Chrome", L"Google/Chrome Beta", L"Google/Chrome Dev", L"Google/Chrome SxS"
@@ -1119,21 +1225,30 @@ void gamec() {
 			const std::vector<std::wstring> Caches = {
 				L"Cache", L"Code Cache", L"GPUCache", L"ShaderCache"
 			};
-			for (const auto& vendor : Chromium) {
-				for (const auto& cache : Caches) {
+			for (const auto& vendor : Chromium)
+			{
+				for (const auto& cache : Caches)
+				{
 					CacheClear(*local / vendor / L"User Data/Default" / cache);
 				}
 			}
 			const std::filesystem::path profiles = *local / L"Mozilla/Firefox/Profiles";
-			if (std::filesystem::exists(profiles)) {
-				for (const auto& entry : std::filesystem::directory_iterator(profiles)) {
-					if (entry.is_directory()) {
+			if (std::filesystem::exists(profiles))
+			{
+				for (const auto& entry : std::filesystem::directory_iterator(profiles))
+				{
+					if (entry.is_directory())
+					{
 						CacheClear(entry.path() / L"cache2");
 					}
 				}
 			}
-			const std::vector<std::wstring> opera = { L"Opera Software/Opera Stable", L"Opera Software/Opera GX Stable", L"Opera Software/Opera Air Stable", L"Opera Software/Opera Next" };
-			for (const auto& browser : opera) {
+			const std::vector<std::wstring> opera = {
+				L"Opera Software/Opera Stable", L"Opera Software/Opera GX Stable", L"Opera Software/Opera Air Stable",
+				L"Opera Software/Opera Next"
+			};
+			for (const auto& browser : opera)
+			{
 				CacheClear(*local / browser / L"Default/Cache");
 			}
 		}
@@ -1142,9 +1257,11 @@ void gamec() {
 	{
 		HKEY hKey;
 		RegOpenKeyEx(HKEY_CURRENT_USER, L"Console\\%%Startup", 0, KEY_SET_VALUE, &hKey);
-		const wchar_t* value = L"WindowsTerminal";
-		RegSetValueEx(hKey, L"DelegationConsole", 0, REG_SZ, reinterpret_cast<const BYTE*>(value), (wcslen(value) + 1) * sizeof(wchar_t));
-		RegSetValueEx(hKey, L"DelegationTerminal", 0, REG_SZ, reinterpret_cast<const BYTE*>(value), (wcslen(value) + 1) * sizeof(wchar_t));
+		auto value = L"WindowsTerminal";
+		RegSetValueEx(hKey, L"DelegationConsole", 0, REG_SZ, reinterpret_cast<const BYTE*>(value),
+		              (wcslen(value) + 1) * sizeof(wchar_t));
+		RegSetValueEx(hKey, L"DelegationTerminal", 0, REG_SZ, reinterpret_cast<const BYTE*>(value),
+		              (wcslen(value) + 1) * sizeof(wchar_t));
 		RegCloseKey(hKey);
 	}
 }
@@ -1153,100 +1270,100 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 {
 	switch (msg)
 	{
-
 	case WM_CTLCOLORLISTBOX:
 	case WM_CTLCOLORSTATIC:
 	case WM_CTLCOLOREDIT:
 	case WM_CTLCOLORSCROLLBAR:
-	{
-		HDC dc = (HDC)wParam;
-		SetBkMode(dc, TRANSPARENT);
-		SetTextColor(dc, RGB(32, 32, 32));
-		static HBRUSH hBrush = CreateSolidBrush(RGB(180, 210, 255));
-		return (LRESULT)hBrush;
-
-	}
+		{
+			auto dc = (HDC)wParam;
+			SetBkMode(dc, TRANSPARENT);
+			SetTextColor(dc, RGB(32, 32, 32));
+			static HBRUSH hBrush = CreateSolidBrush(RGB(180, 210, 255));
+			return (LRESULT)hBrush;
+		}
 
 	case WM_DPICHANGED:
-	{
-		SendMessage(hWnd, WM_SETFONT, (WPARAM)font, TRUE);
-		auto r = (RECT*)lParam;
-		SetWindowPos(hWnd, nullptr, r->left, r->top, r->right - r->left, r->bottom - r->top, SWP_NOZORDER | SWP_NOACTIVATE);
-		return 0;
-	}
+		{
+			SendMessage(hWnd, WM_SETFONT, (WPARAM)font, TRUE);
+			auto r = (RECT*)lParam;
+			SetWindowPos(hWnd, nullptr, r->left, r->top, r->right - r->left, r->bottom - r->top,
+			             SWP_NOZORDER | SWP_NOACTIVATE);
+			return 0;
+		}
 
 	case WM_DRAWITEM:
-	{
-		auto* dis = (LPDRAWITEMSTRUCT)lParam;
-		if (dis && dis->CtlType == ODT_BUTTON) {
+		{
+			auto* dis = (LPDRAWITEMSTRUCT)lParam;
+			if (dis && dis->CtlType == ODT_BUTTON)
+			{
+				dis->itemState &= ~ODS_FOCUS;
 
-			dis->itemState &= ~ODS_FOCUS;
+				HPEN pen = CreatePen(PS_SOLID, 1, RGB(200, 220, 255));
+				HGDIOBJ oldPen = SelectObject(dis->hDC, pen);
+				HGDIOBJ oldBrush = SelectObject(dis->hDC, GetStockObject(NULL_BRUSH));
 
-			HPEN pen = CreatePen(PS_SOLID, 1, RGB(200, 220, 255));
-			HGDIOBJ oldPen = SelectObject(dis->hDC, pen);
-			HGDIOBJ oldBrush = SelectObject(dis->hDC, GetStockObject(NULL_BRUSH));
+				RoundRect(dis->hDC, dis->rcItem.left, dis->rcItem.top, dis->rcItem.right, dis->rcItem.bottom, 10, 10);
+				SelectObject(dis->hDC, oldBrush);
+				SelectObject(dis->hDC, oldPen);
+				DeleteObject(pen);
+				SetTextColor(dis->hDC, RGB(20, 40, 80));
+				SetBkMode(dis->hDC, TRANSPARENT);
 
-			RoundRect(dis->hDC, dis->rcItem.left, dis->rcItem.top, dis->rcItem.right, dis->rcItem.bottom, 10, 10);
-			SelectObject(dis->hDC, oldBrush);
-			SelectObject(dis->hDC, oldPen);
-			DeleteObject(pen);
-			SetTextColor(dis->hDC, RGB(20, 40, 80));
-			SetBkMode(dis->hDC, TRANSPARENT);
+				wchar_t text[256];
+				GetWindowText(dis->hwndItem, text, 256);
+				DrawText(dis->hDC, text, -1, &dis->rcItem, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
-			wchar_t text[256];
-			GetWindowText(dis->hwndItem, text, 256);
-			DrawText(dis->hDC, text, -1, &dis->rcItem, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-
-			return TRUE;
+				return TRUE;
+			}
+			return FALSE;
 		}
-		return FALSE;
-	}
 
 	case WM_COMMAND:
-	{
-		const UINT id = LOWORD(wParam);
-
-		if (HIWORD(wParam) == CBN_SELCHANGE)
-			cb_index = (int)SendMessage((HWND)lParam, CB_GETCURSEL, 0, 0);
-
-		if (id == 1 || id == 2)
 		{
-			if (g_isBusy.exchange(true))
-				return 0;
+			const UINT id = LOWORD(wParam);
 
-			EnableWindow(patch, FALSE);
-			EnableWindow(listbox, FALSE);
+			if (HIWORD(wParam) == CBN_SELCHANGE)
+				cb_index = static_cast<int>(SendMessage((HWND)lParam, CB_GETCURSEL, 0, 0));
 
-			const int index = cb_index;
-			const bool rest = (id == 2);
+			if (id == 1 || id == 2)
+			{
+				if (g_isBusy.exchange(true))
+					return 0;
 
-			std::thread([index, rest]() {
+				EnableWindow(patch, FALSE);
+				EnableWindow(listbox, FALSE);
 
-				static const std::vector<std::wstring> gameKeys = {L"dota2", L"smite2", L"mgs",
-					L"blands4", L"oblivionr", L"silenthillf",
-					L"outworlds2", L"minecraft"
-				};
+				const int index = cb_index;
+				const bool rest = (id == 2);
 
-				if (index >= 0 && index < (int)gameKeys.size())
+				std::thread([index, rest]()
 				{
-					manage(gameKeys[index], rest);
-				}
-				if (index == 8)
-				{
-					gamec();
-				}
+					static const std::vector<std::wstring> gameKeys = {
+						L"dota2", L"smite2", L"mgs",
+						L"blands4", L"oblivionr", L"silenthillf",
+						L"outworlds2", L"minecraft"
+					};
 
+					if (index >= 0 && index < static_cast<int>(gameKeys.size()))
+					{
+						manage(gameKeys[index], rest);
+					}
+					if (index == 8)
+					{
+						gamec();
+					}
 				}).detach();
 
-			PostMessage(hWnd, WM_APP + 1, 0, 0);
-			return 0;
+				PostMessage(hWnd, WM_APP + 1, 0, 0);
+				return 0;
+			}
+			if (id == IDM_EXIT)
+			{
+				SendMessage(hWnd, WM_CLOSE, 0, 0);
+				return 0;
+			}
+			break;
 		}
-		if (id == IDM_EXIT) {
-			SendMessage(hWnd, WM_CLOSE, 0, 0);
-			return 0;
-		}
-		break;
-	}
 
 	case WM_APP + 1:
 		g_isBusy = false;
@@ -1267,7 +1384,8 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 	return DefWindowProc(hWnd, msg, wParam, lParam);
 }
 
-struct Layout {
+struct Layout
+{
 	static constexpr int W = 300;
 	static constexpr int H = 130;
 	static constexpr int TOP = 20;
@@ -1288,8 +1406,11 @@ int WINAPI wWinMain(
 	_In_ LPWSTR lpCmdLine,
 	_In_ int nShowCmd)
 {
-
-	WNDCLASSEXW wcx{ sizeof(WNDCLASSEXW), CS_HREDRAW | CS_VREDRAW, WndProc, 0, 0, hInstance, LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON)), LoadCursor(nullptr, IDC_ARROW), (HBRUSH)NULL_BRUSH, nullptr, L"LoLSuite", nullptr };
+	WNDCLASSEXW wcx{
+		sizeof(WNDCLASSEXW), CS_HREDRAW | CS_VREDRAW, WndProc, 0, 0, hInstance,
+		LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON)), LoadCursor(nullptr, IDC_ARROW), (HBRUSH)NULL_BRUSH, nullptr,
+		L"LoLSuite", nullptr
+	};
 	RegisterClassEx(&wcx);
 
 	hWnd = CreateWindowEx(
@@ -1325,16 +1446,20 @@ int WINAPI wWinMain(
 	gen_shortcut();
 	CoUninitialize();
 
-	for (HWND h : {patch, restore,  listbox})
+	for (HWND h : {patch, restore, listbox})
 		SendMessage(h, WM_SETFONT, (WPARAM)font, TRUE);
 
 	for (LPCWSTR s : {
-		L"DOTA 2", L"SMITE 2", L"Metal Gear Solid Delta : Snake Eater", L"Borderlands 4", L"The Elder Scrolls IV: Oblivion Remastered", L"SILENT HILL f", L"The Outer Worlds 2", L"MineCraft : Java", L"Café Clients"
-	})
+		     L"DOTA 2", L"SMITE 2", L"Metal Gear Solid Delta : Snake Eater", L"Borderlands 4",
+		     L"The Elder Scrolls IV: Oblivion Remastered", L"SILENT HILL f", L"The Outer Worlds 2", L"MineCraft : Java",
+		     L"Café Clients"
+	     })
 		SendMessage(listbox, CB_ADDSTRING, 0, (LPARAM)s);
 
 	SendMessage(listbox, CB_SETCURSEL, 0, 0);
-	runProcess(L"powershell.exe", L"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Get-AppxPackage -Name Microsoft.DesktopAppInstaller|Foreach{Add-AppxPackage -DisableDevelopmentMode -Register '$($_.InstallLocation)\\AppXManifest.xml'}\"", true);
+	runProcess(L"powershell.exe",
+	           L"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Get-AppxPackage -Name Microsoft.DesktopAppInstaller|Foreach{Add-AppxPackage -DisableDevelopmentMode -Register '$($_.InstallLocation)\\AppXManifest.xml'}\"",
+	           true);
 	runProcess(L"powershell.exe", L"winget source update", true);
 
 	ShowWindow(hWnd, nShowCmd);
@@ -1344,10 +1469,11 @@ int WINAPI wWinMain(
 
 	MSG msg;
 
-	while (GetMessage(&msg, nullptr, 0, 0)) {
+	while (GetMessage(&msg, nullptr, 0, 0))
+	{
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
 
-	return (int)msg.wParam;
+	return static_cast<int>(msg.wParam);
 }
