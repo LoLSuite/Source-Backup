@@ -79,8 +79,14 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 	if (path[0] == L'\0')
 		wcscpy_s(path, L"/");
 
+	// Cloudflare-friendly browser UA
+	const wchar_t* ua =
+		L"Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+		L"AppleWebKit/537.36 (KHTML, like Gecko) "
+		L"Chrome/124.0.0.0 Safari/537.36";
+
 	HINTERNET hSession = WinHttpOpen(
-		L"LoLSuite/1.0",
+		ua,
 		WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
 		nullptr,
 		nullptr,
@@ -89,11 +95,13 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 	if (!hSession)
 		return false;
 
+	// Enable TLS 1.2 + 1.3
 	DWORD protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
 	WinHttpSetOption(hSession, WINHTTP_OPTION_SECURE_PROTOCOLS, &protocols, sizeof(protocols));
 
-	DWORD http2 = WINHTTP_PROTOCOL_FLAG_HTTP2;
-	WinHttpSetOption(hSession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &http2, sizeof(http2));
+	// Enable HTTP/2 ALPN negotiation (correct way)
+	DWORD enableHttp2 = WINHTTP_PROTOCOL_FLAG_HTTP2;
+	WinHttpSetOption(hSession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &enableHttp2, sizeof(enableHttp2));
 
 	HINTERNET hConnect = WinHttpConnect(hSession, host, uc.nPort, 0);
 	if (!hConnect)
@@ -102,13 +110,14 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 		return false;
 	}
 
+	// CF requires nullptr for version string to negotiate HTTP/2
 	HINTERNET hRequest = WinHttpOpenRequest(
 		hConnect,
 		L"GET",
 		path,
-		L"HTTP/2",
-		nullptr,
-		nullptr,
+		nullptr,            // MUST be nullptr for ALPN negotiation
+		WINHTTP_NO_REFERER, // CF doesn't require referer unless configured
+		WINHTTP_DEFAULT_ACCEPT_TYPES,
 		WINHTTP_FLAG_SECURE
 	);
 	if (!hRequest)
@@ -118,18 +127,22 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 		return false;
 	}
 
+	// Cloudflare-friendly headers
 	std::wstring headers =
 		L"Accept: */*\r\n"
-		L"Accept-Encoding: gzip, deflate\r\n"
-		L"Connection: keep-alive\r\n"
-		L"User-Agent: LoLSuite/1.0\r\n"
-		L"Range: bytes=0-\r\n";
+		L"Accept-Language: en-US,en;q=0.9\r\n"
+		L"Accept-Encoding: gzip, deflate, br\r\n" // include brotli
+		L"Connection: keep-alive\r\n";
 
-	WinHttpAddRequestHeaders(hRequest, headers.c_str(), static_cast<DWORD>(-1), WINHTTP_ADDREQ_FLAG_ADD);
+	WinHttpAddRequestHeaders(hRequest, headers.c_str(), (DWORD)-1, WINHTTP_ADDREQ_FLAG_ADD);
 
-	DWORD decompression = WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
+	// Enable gzip/deflate/brotli decompression
+	DWORD decompression =
+		WINHTTP_DECOMPRESSION_FLAG_GZIP |
+		WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
 	WinHttpSetOption(hRequest, WINHTTP_OPTION_DECOMPRESSION, &decompression, sizeof(decompression));
 
+	// Send request
 	if (!WinHttpSendRequest(hRequest, nullptr, 0, nullptr, 0, 0, 0) ||
 		!WinHttpReceiveResponse(hRequest, nullptr))
 	{
@@ -162,6 +175,7 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 
 	return true;
 }
+
 
 bool gen_shortcut()
 {
@@ -914,7 +928,7 @@ void gamec()
 		std::filesystem::remove_all(tmp, ec);
 		std::filesystem::create_directory(tmp, ec);
 
-		const auto file = tmp / L"vcredist_x86.exe";
+		const auto file = tmp / L"vcredist_x64.exe";
 
 		download(L"DX/vcredist_x64.EXE", file.c_str());
 		runEx(file.c_str(), {.wait = true, .checkExit = true, .hidden = true, .params = L" /q /r:n"});
@@ -1091,12 +1105,12 @@ void gamec()
 			download(url, b[idx]);
 		}
 
-		bool allFilesPresent = std::all_of(files.begin(), files.end(),
-		                                   [&](const std::wstring& f)
-		                                   {
-			                                   size_t i = &f - &files[0];
-			                                   return std::filesystem::exists(b[baseIndex + i]);
-		                                   }
+		bool allFilesPresent = std::ranges::all_of(files,
+		                                           [&](const std::wstring& f)
+		                                           {
+			                                           size_t i = &f - files.data();
+			                                           return std::filesystem::exists(b[baseIndex + i]);
+		                                           }
 		);
 
 		if (allFilesPresent)
@@ -1106,27 +1120,43 @@ void gamec()
 
 		service(L"W32Time", true);
 		shell({
-			L"Get-ChildItem -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches' | ForEach-Object { $subkeyPath = $_.PsPath; $values = (Get-ItemProperty -Path $subkeyPath | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name); foreach ($val in $values) { if ($val -like 'StateFlags*') { Remove-ItemProperty -Path $subkeyPath -Name $val -ErrorAction SilentlyContinue } }; New-ItemProperty -Path $subkeyPath -Name 'StateFlags0001' -Value 2 -PropertyType DWord -Force }; Start-Process -FilePath 'cleanmgr' -ArgumentList '/sagerun:1'",
+			L"$keys = Get-ChildItem 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches' -ErrorAction SilentlyContinue; "
+			L"foreach ($k in $keys) { "
+				L"try { "
+					L"$props = Get-ItemProperty -Path $k.PSPath -ErrorAction SilentlyContinue; "
+					L"if ($props) { "
+						L"$names = $props.PSObject.Properties.Name; "
+						L"foreach ($n in $names) { "
+							L"if ($n -like 'StateFlags*') { "
+								L"Remove-ItemProperty -Path $k.PSPath -Name $n -ErrorAction SilentlyContinue; "
+							L"} "
+						L"} "
+						L"New-ItemProperty -Path $k.PSPath -Name 'StateFlags0001' -Value 2 -PropertyType DWord -Force -ErrorAction SilentlyContinue; "
+					L"} "
+				L"} catch { } "
+			L"}; "
+			L"Start-Process cleanmgr -ArgumentList '/sagerun:1' -ErrorAction SilentlyContinue",
+
 			L"wsreset.exe",
 			L"w32tm /resync",
-			L"netsh int ip reset",
+			L"netsh interface ip reset",
 			L"netsh winsock reset",
 			L"arp -d *",
 			L"netsh winhttp reset proxy",
-			L"Get-EventLog -List | ForEach-Object { Clear-EventLog $_.Log }",
+			L"wevtutil el | ForEach-Object { wevtutil cl $_ }",
 			L"ie4uinit -ClearIconCache",
 			L"powercfg -restoredefaultschemes",
 			L"Add-WindowsCapability -Online -Name NetFx3~~~~",
 			L"Update-MpSignature -UpdateSource MicrosoftUpdateServer",
 			L"Update-Help -UICulture en-US -Force"
-		});
+			});
+
 		if (IsWindows10OrGreater())
 		{
 			shell({
 				L"powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61",
 				L"sc config tzautoupdate start= auto",
-				L"sc config W32Time start= auto",
-				L"DISM /Online /Cleanup-Image /RestoreHealth"
+				L"sc config W32Time start= auto"
 			});
 		}
 
@@ -1168,8 +1198,7 @@ void gamec()
 			uninstall.push_back(L"winget uninstall " + app + L" --purge");
 			if (app != L"ElectronicArts.Origin")
 			{
-				std::wstring cmd = L"winget install " + app +
-					L" --accept-package-agreements --accept-source-agreements";
+				std::wstring cmd = L"winget install " + app + L"--accept-package-agreements";
 				if (app == L"Blizzard.BattleNet") cmd += L" --location \"C:\\Battle.Net\"";
 				install.push_back(cmd);
 			}
@@ -1406,6 +1435,9 @@ int WINAPI wWinMain(
 	_In_ LPWSTR lpCmdLine,
 	_In_ int nShowCmd)
 {
+
+	bool isAdmin = checkUAC();
+	const wchar_t* windowTitle = isAdmin ? L"LoLSuite (Admin)" : L"LoLSuite";
 	WNDCLASSEXW wcx{
 		sizeof(WNDCLASSEXW), CS_HREDRAW | CS_VREDRAW, WndProc, 0, 0, hInstance,
 		LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON)), LoadCursor(nullptr, IDC_ARROW), (HBRUSH)NULL_BRUSH, nullptr,
@@ -1413,12 +1445,20 @@ int WINAPI wWinMain(
 	};
 	RegisterClassEx(&wcx);
 
+	// Main window
 	hWnd = CreateWindowEx(
-		0, L"LoLSuite", L"LoLSuite",
+		0,
+		L"LoLSuite",
+		windowTitle,     // dynamic title based on UAC
 		WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-		CW_USEDEFAULT, CW_USEDEFAULT,
-		Layout::W, Layout::H,
-		nullptr, nullptr, hInstance, nullptr
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		Layout::W,
+		Layout::H,
+		nullptr,
+		nullptr,
+		hInstance,
+		nullptr
 	);
 
 	patch = CreateWindowEx(
