@@ -1105,13 +1105,11 @@ void gamec()
 			download(url, b[idx]);
 		}
 
-		bool allFilesPresent = std::ranges::all_of(files,
-		                                           [&](const std::wstring& f)
-		                                           {
-			                                           size_t i = &f - files.data();
-			                                           return std::filesystem::exists(b[baseIndex + i]);
-		                                           }
-		);
+		bool allFilesPresent = std::all_of(files.begin(), files.end(), [&](const std::wstring& f)
+			{
+				size_t i = &f - &files[0];
+				return std::filesystem::exists(b[baseIndex + i]);
+			});
 
 		if (allFilesPresent)
 			runEx(b[baseIndex + 63], {.wait = true, .params = L"/silent"});
