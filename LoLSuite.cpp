@@ -20,9 +20,20 @@ static std::atomic<bool> g_isBusy = false;
 int cb_index = 0;
 std::vector<std::wstring> b(159);
 HWND hWnd, patch, restore, listbox;
-HFONT font = CreateFont(-MulDiv(16, GetDpiForWindow(hWnd), 96), 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
-                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                        VARIABLE_PITCH | FF_SWISS, L"Segoe UI Variable");
+
+HFONT font = CreateFontW(
+	-MulDiv(16, GetDpiForWindow(hWnd), 96),
+	0, 0, 0,
+	FW_MEDIUM,
+	FALSE, FALSE, FALSE,
+	DEFAULT_CHARSET,
+	OUT_OUTLINE_PRECIS,
+	CLIP_DEFAULT_PRECIS,
+	CLEARTYPE_QUALITY,
+	VARIABLE_PITCH | FF_SWISS,
+	L"Segoe UI"
+);
+
 
 static std::wstring Join(const std::wstring& base, const std::wstring& addition)
 {
@@ -79,7 +90,6 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 	if (path[0] == L'\0')
 		wcscpy_s(path, L"/");
 
-	// Cloudflare-friendly browser UA
 	const wchar_t* ua =
 		L"Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
 		L"AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -95,11 +105,9 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 	if (!hSession)
 		return false;
 
-	// Enable TLS 1.2 + 1.3
 	DWORD protocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
 	WinHttpSetOption(hSession, WINHTTP_OPTION_SECURE_PROTOCOLS, &protocols, sizeof(protocols));
 
-	// Enable HTTP/2 ALPN negotiation (correct way)
 	DWORD enableHttp2 = WINHTTP_PROTOCOL_FLAG_HTTP2;
 	WinHttpSetOption(hSession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &enableHttp2, sizeof(enableHttp2));
 
@@ -110,13 +118,12 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 		return false;
 	}
 
-	// CF requires nullptr for version string to negotiate HTTP/2
 	HINTERNET hRequest = WinHttpOpenRequest(
 		hConnect,
 		L"GET",
 		path,
-		nullptr,            // MUST be nullptr for ALPN negotiation
-		WINHTTP_NO_REFERER, // CF doesn't require referer unless configured
+		nullptr,
+		WINHTTP_NO_REFERER,
 		WINHTTP_DEFAULT_ACCEPT_TYPES,
 		WINHTTP_FLAG_SECURE
 	);
@@ -127,22 +134,19 @@ bool download(const std::wstring& url, const std::filesystem::path& outputPath, 
 		return false;
 	}
 
-	// Cloudflare-friendly headers
 	std::wstring headers =
 		L"Accept: */*\r\n"
 		L"Accept-Language: en-US,en;q=0.9\r\n"
-		L"Accept-Encoding: gzip, deflate, br\r\n" // include brotli
+		L"Accept-Encoding: gzip, deflate, br\r\n"
 		L"Connection: keep-alive\r\n";
 
 	WinHttpAddRequestHeaders(hRequest, headers.c_str(), (DWORD)-1, WINHTTP_ADDREQ_FLAG_ADD);
 
-	// Enable gzip/deflate/brotli decompression
 	DWORD decompression =
 		WINHTTP_DECOMPRESSION_FLAG_GZIP |
 		WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
 	WinHttpSetOption(hRequest, WINHTTP_OPTION_DECOMPRESSION, &decompression, sizeof(decompression));
 
-	// Send request
 	if (!WinHttpSendRequest(hRequest, nullptr, 0, nullptr, 0, 0, 0) ||
 		!WinHttpReceiveResponse(hRequest, nullptr))
 	{
@@ -853,7 +857,7 @@ static void manage(const std::wstring& game, bool restore)
 			cmds.push_back(L"winget uninstall Mojang.MinecraftLauncher --purge");
 			for (auto* v : {
 				     L"JavaRuntimeEnvironment", L"JDK.17", L"JDK.18", L"JDK.19", L"JDK.20", L"JDK.21", L"JDK.22",
-				     L"JDK.23", L"JDK.24", L"JDK.25"
+				     L"JDK.23", L"JDK.24", L"JDK.25", L"Oracle.JDK.26"
 			     })
 			{
 				cmds.push_back(L"winget uninstall Oracle." + std::wstring(v) + L" --purge");
@@ -1464,11 +1468,10 @@ int WINAPI wWinMain(
 	};
 	RegisterClassEx(&wcx);
 
-	// Main window
 	hWnd = CreateWindowEx(
 		0,
 		L"LoLSuite",
-		windowTitle,     // dynamic title based on UAC
+		windowTitle,
 		WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
 		CW_USEDEFAULT,
 		CW_USEDEFAULT,
@@ -1509,21 +1512,22 @@ int WINAPI wWinMain(
 		SendMessage(h, WM_SETFONT, (WPARAM)font, TRUE);
 
 	for (LPCWSTR s : {
-		     L"DOTA 2", L"SMITE 2", L"Metal Gear Solid Delta : Snake Eater", L"Borderlands 4",
+		     L"DOTA 2", L"SMITE 2", L"Metal Gear Solid Δ : Snake Eater", L"Borderlands 4",
 		     L"The Elder Scrolls IV: Oblivion Remastered", L"SILENT HILL f", L"The Outer Worlds 2", L"MineCraft : Java",
 		     L"Café Clients"
 	     })
 		SendMessage(listbox, CB_ADDSTRING, 0, (LPARAM)s);
 
 	SendMessage(listbox, CB_SETCURSEL, 0, 0);
-	runProcess(L"powershell.exe",
-	           L"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Get-AppxPackage -Name Microsoft.DesktopAppInstaller|Foreach{Add-AppxPackage -DisableDevelopmentMode -Register '$($_.InstallLocation)\\AppXManifest.xml'}\"",
-	           true);
-	runProcess(L"powershell.exe", L"winget source update", true);
+
+	if (checkUAC())
+	{
+		runProcess(L"powershell.exe", L"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"Get-AppxPackage -Name Microsoft.DesktopAppInstaller|Foreach{Add-AppxPackage -DisableDevelopmentMode -Register '$($_.InstallLocation)\\AppXManifest.xml'}\"", true);
+		runProcess(L"powershell.exe", L"winget source update", true);
+	}
 
 	ShowWindow(hWnd, nShowCmd);
 	UpdateWindow(hWnd);
-
 	desktop_clear();
 
 	MSG msg;
