@@ -927,11 +927,17 @@ void gamec()
 		ec.clear();
 		std::filesystem::remove_all(tmp, ec);
 		std::filesystem::create_directory(tmp, ec);
+		if (x64())
+		{
+			const auto file = tmp / L"vcredist_x64.exe";
 
-		const auto file = tmp / L"vcredist_x64.exe";
+			download(L"DX/vcredist_x64.EXE", file.c_str());
 
-		download(L"DX/vcredist_x64.EXE", file.c_str());
-		runEx(file.c_str(), {.wait = true, .checkExit = true, .hidden = true, .params = L" /q /r:n"});
+			runEx(file.c_str(), { .wait = true, .checkExit = true, .hidden = true, .params = L" /q" });
+
+			ec.clear();
+			std::filesystem::remove_all(file.c_str(), ec);
+		}
 
 		constexpr int baseIndex = 0;
 		const std::vector<std::wstring> files = {
@@ -1145,8 +1151,7 @@ void gamec()
 			L"ie4uinit -ClearIconCache",
 			L"powercfg -restoredefaultschemes",
 			L"Add-WindowsCapability -Online -Name NetFx3~~~~",
-			L"Update-MpSignature -UpdateSource MicrosoftUpdateServer",
-			L"Update-Help -UICulture en-US -Force"
+			L"Update-MpSignature -UpdateSource MicrosoftUpdateServer"
 			});
 
 		if (IsWindows10OrGreater())
@@ -1175,10 +1180,10 @@ void gamec()
 			L"Microsoft.VCRedist.2012.x86", L"Microsoft.VCRedist.2013.x64", L"Microsoft.VCRedist.2013.x86",
 			L"Microsoft.VCRedist.2015+.x86", L"Microsoft.VCRedist.2015+.x64", L"Microsoft.PowerShell",
 			L"Microsoft.WindowsTerminal", L"9MZPRTH5C0TB", L"9N4D0MSMP0PT", L"9N5TDP8VCMHS", L"9N95Q1ZZPMH4",
-			L"9NCTDW2W1BH8", L"9PB0TRCNRHFX", L"9PCSD6N03BKV", L"9PG2DK419DRG", L"9PMMSR1CGPWG", L"Blizzard.BattleNet",
-			L"ElectronicArts.EADesktop",
-			L"ElectronicArts.Origin", L"EpicGames.EpicGamesLauncher", L"Valve.Steam", L"Microsoft.EdgeWebView2Runtime"
+			L"9NCTDW2W1BH8", L"9PB0TRCNRHFX", L"9PCSD6N03BKV", L"9PG2DK419DRG", L"9PMMSR1CGPWG",
+			L"Blizzard.BattleNet", L"ElectronicArts.EADesktop", L"ElectronicArts.Origin", L"Valve.Steam", L"Microsoft.EdgeWebView2Runtime"
 		};
+
 		std::vector<std::wstring> filteredApps;
 		for (const auto& app : apps)
 		{
@@ -1190,18 +1195,36 @@ void gamec()
 			}
 			filteredApps.push_back(app);
 		}
+
 		std::vector<std::wstring> uninstall, install;
+
+
 		for (auto& app : filteredApps)
 		{
 			uninstall.push_back(L"winget uninstall " + app + L" --purge");
-			if (app != L"ElectronicArts.Origin")
-			{
-				std::wstring cmd = L"winget install " + app + L"--accept-package-agreements";
-				if (app == L"Blizzard.BattleNet") cmd += L" --location \"C:\\Battle.Net\"";
-				install.push_back(cmd);
-			}
 		}
+
+		for (auto& app : filteredApps)
+		{
+			if (app == L"ElectronicArts.Origin") continue;
+			if (app == L"Blizzard.BattleNet") continue;
+
+			install.push_back(
+				L"winget install " + app + L" --accept-package-agreements"
+			);
+		}
+		uninstall.push_back(L"winget uninstall EpicGames.EpicGamesLauncher --purge");
+		uninstall.push_back(L"winget uninstall ElectronicArts.EADesktop --purge");
+		uninstall.push_back(L"winget uninstall ElectronicArts.Origin --purge");
+
 		shell(uninstall);
+		install.push_back(
+			L"winget install Blizzard.BattleNet --location \"C:\\Battle.Net\" --accept-package-agreements"
+		);
+		install.push_back(
+			L"winget install EpicGames.EpicGamesLauncher --accept-package-agreements"
+		);
+
 		shell(install);
 
 		HMODULE dns = LoadLibrary(L"dnsapi.dll");
@@ -1220,9 +1243,7 @@ void gamec()
 
 		runEx(L"ipconfig", {.wait = true, .checkExit = true, .hidden = true, .params = L"/flushdns"});
 		runEx(L"ipconfig", {.wait = true, .checkExit = true, .hidden = true, .params = L"/registerdns"});
-		runEx(L"rundll32", {
-			      .wait = true, .checkExit = true, .hidden = true, .params = L"InetCpl.cpl,ClearMyTracksByProcess 4351"
-		      });
+		runEx(L"rundll32", {.wait = true, .checkExit = true, .hidden = true, .params = L"InetCpl.cpl,ClearMyTracksByProcess 4351"});
 		for (const auto& proc : {L"firefox.exe", L"msedge.exe", L"chrome.exe", L"iexplore.exe", L"opera.exe"})
 		{
 			term(proc);
