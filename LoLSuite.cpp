@@ -341,21 +341,19 @@ void runProcess(const std::wstring& exe, const std::wstring& args, bool wait)
 
 void shell(const std::vector<std::wstring>& commands)
 {
-	std::wstring script;
-	for (auto& c : commands)
-	{
-		std::wstring safe = c;
-		std::ranges::replace(safe, L'"', L'`"');
-		script += safe + L"; ";
-	}
-
-	runProcess(
-		L"powershell.exe",
-		L"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& { " + script + L" }\"",
-		true
-	);
+		std::wstring script;
+		for (size_t i = 0; i < commands.size(); ++i)
+		{
+				script += commands[i];
+				if (i + 1 < commands.size())
+					script += L"; ";
+		}
+		runProcess(
+			L"powershell.exe",
+			L"-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& { " + script + L" }\"",
+			true
+		);
 }
-
 
 std::wstring folder(const std::wstring& pathLabel)
 {
@@ -1185,7 +1183,7 @@ void gamec()
 			L"Microsoft.VCRedist.2015+.x86", L"Microsoft.VCRedist.2015+.x64", L"Microsoft.PowerShell",
 			L"Microsoft.WindowsTerminal", L"9MZPRTH5C0TB", L"9N4D0MSMP0PT", L"9N5TDP8VCMHS", L"9N95Q1ZZPMH4",
 			L"9NCTDW2W1BH8", L"9PB0TRCNRHFX", L"9PCSD6N03BKV", L"9PG2DK419DRG", L"9PMMSR1CGPWG",
-			L"Blizzard.BattleNet", L"ElectronicArts.EADesktop", L"ElectronicArts.Origin", L"Valve.Steam", L"Microsoft.EdgeWebView2Runtime"
+			L"Blizzard.BattleNet", L"ElectronicArts.EADesktop", L"ElectronicArts.Origin", L"Valve.Steam", L"Microsoft.EdgeWebView2Runtime", L"EpicGames.EpicGamesLauncher"
 		};
 
 		std::vector<std::wstring> filteredApps;
@@ -1202,7 +1200,6 @@ void gamec()
 
 		std::vector<std::wstring> uninstall, install;
 
-
 		for (auto& app : filteredApps)
 		{
 			uninstall.push_back(L"winget uninstall " + app + L" --purge");
@@ -1212,23 +1209,16 @@ void gamec()
 		{
 			if (app == L"ElectronicArts.Origin") continue;
 			if (app == L"Blizzard.BattleNet") continue;
-
 			install.push_back(
 				L"winget install " + app + L" --accept-package-agreements"
 			);
+			install.push_back(
+				L"winget install Blizzard.BattleNet --location \"C:\\Battle.Net\""
+			);
+			
 		}
-		uninstall.push_back(L"winget uninstall EpicGames.EpicGamesLauncher --purge");
-		uninstall.push_back(L"winget uninstall ElectronicArts.EADesktop --purge");
-		uninstall.push_back(L"winget uninstall ElectronicArts.Origin --purge");
 
 		shell(uninstall);
-		install.push_back(
-			L"winget install Blizzard.BattleNet --location \"C:\\Battle.Net\" --accept-package-agreements"
-		);
-		install.push_back(
-			L"winget install EpicGames.EpicGamesLauncher --accept-package-agreements"
-		);
-
 		shell(install);
 
 		HMODULE dns = LoadLibrary(L"dnsapi.dll");
