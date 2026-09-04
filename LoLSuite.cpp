@@ -8,7 +8,6 @@
 #include <unordered_map>
 #include <fstream>
 #include <thread>
-#include <utility>
 #include <array>
 #include <TlHelp32.h>
 #include <shellapi.h>
