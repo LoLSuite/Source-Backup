@@ -189,10 +189,7 @@ bool download(std::wstring_view url, const std::filesystem::path& outputPath, bo
 	if (path[0] == L'\0')
 		wcscpy_s(path, L"/");
 
-	constexpr wchar_t USER_AGENT[] =
-		L"Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-		L"AppleWebKit/537.36 (KHTML, like Gecko) "
-		L"Chrome/124.0.0.0 Safari/537.36";
+	constexpr wchar_t USER_AGENT[] = L"LoLSuite-FPS-Booster/1.0";
 
 	winhttp_handle hSession{
 		WinHttpOpen(
@@ -207,8 +204,21 @@ bool download(std::wstring_view url, const std::filesystem::path& outputPath, bo
 	if (!hSession)
 		return false;
 
-	DWORD kProtocols = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
-	WinHttpSetOption(hSession, WINHTTP_OPTION_SECURE_PROTOCOLS, &kProtocols, sizeof(kProtocols));
+	if (uc.nScheme == INTERNET_SCHEME_HTTPS)
+	{
+		DWORD protocols =
+			WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
+
+#ifdef WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3
+		protocols |= WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
+#endif
+
+		WinHttpSetOption(
+			hSession,
+			WINHTTP_OPTION_SECURE_PROTOCOLS,
+			&protocols,
+			sizeof(protocols));
+	}
 
 	DWORD enableHttp2 = WINHTTP_PROTOCOL_FLAG_HTTP2;
 	WinHttpSetOption(hSession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &enableHttp2, sizeof(enableHttp2));
@@ -345,8 +355,7 @@ bool is64BitWindows()
 		&processMachine,
 		&nativeMachine))
 	{
-		return nativeMachine == IMAGE_FILE_MACHINE_AMD64 ||
-			nativeMachine == IMAGE_FILE_MACHINE_ARM64;
+		return nativeMachine == IMAGE_FILE_MACHINE_AMD64 || nativeMachine == IMAGE_FILE_MACHINE_ARM64;
 	}
 
 	return sizeof(void*) == 8;
