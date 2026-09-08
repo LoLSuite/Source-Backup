@@ -1,7 +1,4 @@
-﻿#define WIN32_LEAN_AND_MEAN
-#define UNICODE
-
-#include <windows.h>
+﻿#include <windows.h>
 #include <winhttp.h>
 #include <filesystem>
 #include <atomic>
@@ -1538,7 +1535,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 struct Layout
 {
 	static constexpr int W = 300;
-	static constexpr int H = 130;
+	static constexpr int H = 150;
 	static constexpr int TOP = 20;
 	static constexpr int CH = 30;
 	static constexpr int BW = 63;
