@@ -1538,7 +1538,7 @@ struct Layout
 	static constexpr int H = 150;
 	static constexpr int TOP = 20;
 	static constexpr int CH = 30;
-	static constexpr int BW = 63;
+	static constexpr int BW = 70;
 	static constexpr int BS = 15;
 	static constexpr int xPatch = BS;
 	static constexpr int xRestore = xPatch + BW + BS;
@@ -1548,11 +1548,7 @@ struct Layout
 };
 
 
-int WINAPI wWinMain(
-	_In_ HINSTANCE hInstance,
-	_In_opt_ HINSTANCE hPrevInstance,
-	_In_ LPWSTR lpCmdLine,
-	_In_ int nShowCmd)
+int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
 {
 	HFONT hFont = CreateUiFont(hWnd);
 	bool isAdmin = checkUAC();
