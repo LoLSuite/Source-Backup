@@ -1534,7 +1534,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 struct Layout
 {
-	static constexpr int W = 300;
+	static constexpr int W = 450;
 	static constexpr int H = 150;
 	static constexpr int TOP = 20;
 	static constexpr int CH = 30;
@@ -1556,7 +1556,7 @@ int WINAPI wWinMain(
 {
 	HFONT hFont = CreateUiFont(hWnd);
 	bool isAdmin = checkUAC();
-	const wchar_t* windowTitle = isAdmin ? L"LoLSuite (Admin)" : L"LoLSuite";
+	const wchar_t* windowTitle = isAdmin ? L"LoLSuite (Admin User)" : L"LoLSuite (User)";
 	WNDCLASSEXW wcx{
 		sizeof(WNDCLASSEXW), CS_HREDRAW | CS_VREDRAW, WndProc, 0, 0, hInstance,
 		LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON)), LoadCursor(nullptr, IDC_ARROW), (HBRUSH)NULL_BRUSH, nullptr,
