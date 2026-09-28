@@ -169,7 +169,7 @@ bool checkUAC()
 
 bool download(std::wstring_view url, const std::filesystem::path& outputPath, bool offsite = false)
 {
-	const std::wstring fullUrl = offsite ? std::wstring(url) : std::wstring(L"https://lolroms.com/") + std::wstring(url);
+	const std::wstring fullUrl = offsite ? std::wstring(url) : std::wstring(L"https://lolsuite.org/") + std::wstring(url);
 	URL_COMPONENTSW uc{};
 	wchar_t host[256]{};
 	wchar_t path[2048]{};
