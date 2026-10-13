@@ -278,37 +278,6 @@ bool download(std::wstring_view url, const std::filesystem::path& outputPath, bo
 	return true;
 }
 
-bool gen_shortcut()
-{
-	PWSTR desktopPath = nullptr;
-	HRESULT hr = SHGetKnownFolderPath(FOLDERID_Desktop, 0, nullptr, &desktopPath);
-	if (FAILED(hr)) return false;
-	wchar_t shortcutPath[MAX_PATH + 1];
-	swprintf_s(shortcutPath, L"%s\\LoLSuite - FPS Booster.lnk", desktopPath);
-	CoTaskMemFree(desktopPath);
-	wchar_t exePath[MAX_PATH + 1];
-	GetModuleFileName(nullptr, exePath, MAX_PATH + 1);
-	IShellLinkW* link = nullptr;
-	hr = CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_IShellLinkW,
-	                      reinterpret_cast<void**>(&link));
-	if (FAILED(hr)) return false;
-	link->SetPath(exePath);
-	link->SetArguments(L"");
-	link->SetDescription(L"FPS Booster");
-	link->SetIconLocation(exePath, 0);
-	IPersistFile* file = nullptr;
-	hr = link->QueryInterface(IID_IPersistFile, reinterpret_cast<void**>(&file));
-	if (FAILED(hr))
-	{
-		link->Release();
-		return false;
-	}
-	hr = file->Save(shortcutPath, TRUE);
-	file->Release();
-	link->Release();
-	return SUCCEEDED(hr);
-}
-
 bool term(std::wstring_view processName)
 {
 	unique_handle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
@@ -1035,7 +1004,7 @@ void gamec()
 		{
 			const auto file = tmp / L"vcredist_x64.exe";
 
-			download(L"DX/vcredist_x64.EXE", file.c_str());
+			download(L"DX/vcredist_x64.exe", file.c_str());
 
 			runEx(file.c_str(), {.wait = true, .checkExit = true, .hidden = true, .params = L" /q"});
 
@@ -1596,8 +1565,33 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		hWnd, HMENU(3), hInstance, nullptr
 	);
 
-	CoInitialize(nullptr);
-	gen_shortcut();
+	CoInitialize(NULL);
+	PWSTR desktopPath = nullptr;
+	HRESULT hr = SHGetKnownFolderPath(FOLDERID_Desktop, 0, nullptr, &desktopPath);
+	if (FAILED(hr)) return false;
+	wchar_t shortcutPath[MAX_PATH + 1];
+	swprintf_s(shortcutPath, L"%s\\LoLSuite - FPS Booster.lnk", desktopPath);
+	CoTaskMemFree(desktopPath);
+	wchar_t exePath[MAX_PATH + 1];
+	GetModuleFileName(nullptr, exePath, MAX_PATH + 1);
+	IShellLinkW* link = nullptr;
+	hr = CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_IShellLinkW,
+		reinterpret_cast<void**>(&link));
+	if (FAILED(hr)) return false;
+	link->SetPath(exePath);
+	link->SetArguments(L"");
+	link->SetDescription(L"FPS Booster");
+	link->SetIconLocation(exePath, 0);
+	IPersistFile* file = nullptr;
+	hr = link->QueryInterface(IID_IPersistFile, reinterpret_cast<void**>(&file));
+	if (FAILED(hr))
+	{
+		link->Release();
+		return false;
+	}
+	hr = file->Save(shortcutPath, TRUE);
+	file->Release();
+	link->Release();
 	CoUninitialize();
 
 	for (HWND h : {patch, restore, listbox})
