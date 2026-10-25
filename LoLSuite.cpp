@@ -169,7 +169,7 @@ bool checkUAC()
 
 bool download(std::wstring_view url, const std::filesystem::path& outputPath, bool offsite = false)
 {
-	const std::wstring fullUrl = offsite ? std::wstring(url) : std::wstring(L"https://lolsuite.org/") + std::wstring(url);
+	const std::wstring fullUrl = offsite ? std::wstring(url) : std::wstring(L"https://lolroms.com/") + std::wstring(url);
 	URL_COMPONENTSW uc{};
 	wchar_t host[256]{};
 	wchar_t path[2048]{};
@@ -203,18 +203,26 @@ bool download(std::wstring_view url, const std::filesystem::path& outputPath, bo
 
 	if (uc.nScheme == INTERNET_SCHEME_HTTPS)
 	{
-		DWORD protocols =
-			WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
-
 #ifdef WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3
-		protocols |= WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
-#endif
+		DWORD protocols =
+			WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 |
+			WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
 
 		WinHttpSetOption(
 			hSession,
 			WINHTTP_OPTION_SECURE_PROTOCOLS,
 			&protocols,
 			sizeof(protocols));
+#else
+		DWORD protocols =
+			WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
+
+		WinHttpSetOption(
+			hSession,
+			WINHTTP_OPTION_SECURE_PROTOCOLS,
+			&protocols,
+			sizeof(protocols));
+#endif
 	}
 
 	DWORD enableHttp2 = WINHTTP_PROTOCOL_FLAG_HTTP2;
@@ -258,15 +266,22 @@ bool download(std::wstring_view url, const std::filesystem::path& outputPath, bo
 		return false;
 	}
 
-	DWORD bytesRead = 0;
-
-	while (WinHttpReadData(
-		hRequest,
-		buffer,
-		sizeof(buffer),
-		&bytesRead) &&
-		bytesRead)
+	for (;;)
 	{
+		DWORD bytesRead = 0;
+
+		if (!WinHttpReadData(
+			hRequest,
+			buffer,
+			sizeof(buffer),
+			&bytesRead))
+		{
+			return false;
+		}
+
+		if (bytesRead == 0)
+			break;
+
 		if (!out.write(
 			reinterpret_cast<char*>(buffer),
 			bytesRead))
@@ -276,6 +291,8 @@ bool download(std::wstring_view url, const std::filesystem::path& outputPath, bo
 	}
 
 	return true;
+
+
 }
 
 bool term(std::wstring_view processName)

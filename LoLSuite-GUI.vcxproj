@@ -24,7 +24,7 @@
     <ProjectGuid>{eed924f7-1392-42f2-ba13-d917ed5165dd}</ProjectGuid>
     <RootNamespace>LoLSuiteGUI</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.28000.0</WindowsTargetPlatformVersion>
-    <ProjectName>LoLSuiteUI</ProjectName>
+    <ProjectName>LoLSuite</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -111,6 +111,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
+      <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
     </Link>
     <Manifest>
       <EnableSegmentHeap>true</EnableSegmentHeap>
