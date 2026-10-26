@@ -186,7 +186,7 @@ bool download(std::wstring_view url, const std::filesystem::path& outputPath, bo
 	if (path[0] == L'\0')
 		wcscpy_s(path, L"/");
 
-	constexpr wchar_t USER_AGENT[] = L"LoLSuite-FPS-Booster/1.0";
+	constexpr wchar_t USER_AGENT[] = L"LoLSuite/1.0";
 
 	winhttp_handle hSession{
 		WinHttpOpen(
