@@ -1518,104 +1518,110 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 	return DefWindowProc(hWnd, msg, wParam, lParam);
 }
 
-struct Layout
+int WINAPI wWinMain(HINSTANCE hInstance,
+	HINSTANCE,
+	LPWSTR,
+	int nShowCmd)
 {
-	static constexpr int W = 450;
-	static constexpr int H = 150;
-	static constexpr int TOP = 20;
-	static constexpr int CH = 30;
-	static constexpr int BW = 70;
-	static constexpr int BS = 15;
-	static constexpr int xPatch = BS;
-	static constexpr int xRestore = xPatch + BW + BS;
-	static constexpr int comboLeft = BS;
-	static constexpr int comboTop = TOP + CH + 10;
-	static constexpr int comboWidth = W - BS * 2;
-};
+	constexpr int W = 450;
+	constexpr int H = 150;
 
+	constexpr int TOP = 20;
+	constexpr int BTN_H = 30;
+	constexpr int BTN_W = 70;
+	constexpr int PAD = 15;
 
-int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
-{
-	HFONT hFont = CreateUiFont(hWnd);
+	constexpr int PATCH_X = PAD;
+	constexpr int RESTORE_X = PATCH_X + BTN_W + PAD;
+
+	constexpr int COMBO_X = PAD;
+	constexpr int COMBO_Y = TOP + BTN_H + 10;
+	constexpr int COMBO_W = W - PAD * 2;
+
 	bool isAdmin = checkUAC();
-	const wchar_t* windowTitle = isAdmin ? L"LoLSuite (Admin User)" : L"LoLSuite (User)";
-	WNDCLASSEXW wcx{
-		sizeof(WNDCLASSEXW), CS_HREDRAW | CS_VREDRAW, WndProc, 0, 0, hInstance,
-		LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON)), LoadCursor(nullptr, IDC_ARROW), (HBRUSH)NULL_BRUSH, nullptr,
-		L"LoLSuite", nullptr
-	};
-	RegisterClassEx(&wcx);
 
-	hWnd = CreateWindowEx(
+	WNDCLASSEXW wcx{
+		.cbSize = sizeof(WNDCLASSEXW),
+		.style = CS_HREDRAW | CS_VREDRAW,
+		.lpfnWndProc = WndProc,
+		.hInstance = hInstance,
+		.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON)),
+		.hCursor = LoadCursor(nullptr, IDC_ARROW),
+		.hbrBackground = (HBRUSH)NULL_BRUSH,
+		.lpszClassName = L"LoLSuite"
+	};
+
+	RegisterClassExW(&wcx);
+
+	hWnd = CreateWindowExW(
 		0,
-		L"LoLSuite",
-		windowTitle,
+		wcx.lpszClassName,
+		isAdmin ? L"LoLSuite (Admin User)" : L"LoLSuite (User)",
 		WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
 		CW_USEDEFAULT,
 		CW_USEDEFAULT,
-		Layout::W,
-		Layout::H,
+		W,
+		H,
 		nullptr,
 		nullptr,
 		hInstance,
-		nullptr
-	);
+		nullptr);
 
-	patch = CreateWindowEx(
-		0, L"BUTTON", L"Patch",
-		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_OWNERDRAW | BS_DEFPUSHBUTTON,
-		Layout::xPatch, Layout::TOP, Layout::BW, Layout::CH,
-		hWnd, HMENU(1), hInstance, nullptr
-	);
+	auto MakeButton = [&](int id, LPCWSTR text, int x)
+		{
+			return CreateWindowExW(
+				0,
+				L"BUTTON",
+				text,
+				WS_TABSTOP | WS_VISIBLE | WS_CHILD |
+				BS_OWNERDRAW |
+				(id == 1 ? BS_DEFPUSHBUTTON : BS_PUSHBUTTON),
+				x,
+				TOP,
+				BTN_W,
+				BTN_H,
+				hWnd,
+				(HMENU)id,
+				hInstance,
+				nullptr);
+		};
 
-	restore = CreateWindowEx(
-		0, L"BUTTON", L"Restore",
-		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_OWNERDRAW | BS_PUSHBUTTON,
-		Layout::xRestore, Layout::TOP, Layout::BW, Layout::CH,
-		hWnd, HMENU(2), hInstance, nullptr
-	);
+	patch = MakeButton(1, L"Patch", PATCH_X);
+	restore = MakeButton(2, L"Restore", RESTORE_X);
 
-	listbox = CreateWindowEx(
-		0, WC_COMBOBOX, nullptr,
+	listbox = CreateWindowExW(
+		0,
+		WC_COMBOBOX,
+		nullptr,
 		CBS_DROPDOWN | WS_CHILD | WS_VISIBLE | WS_VSCROLL,
-		Layout::comboLeft, Layout::comboTop, Layout::comboWidth, 210,
-		hWnd, HMENU(3), hInstance, nullptr
-	);
+		COMBO_X,
+		COMBO_Y,
+		COMBO_W,
+		210,
+		hWnd,
+		(HMENU)3,
+		hInstance,
+		nullptr);
 
-	CoInitialize(NULL);
-	PWSTR desktopPath = nullptr;
-	HRESULT hr = SHGetKnownFolderPath(FOLDERID_Desktop, 0, nullptr, &desktopPath);
-	if (FAILED(hr)) return false;
-	wchar_t shortcutPath[MAX_PATH + 1];
-	swprintf_s(shortcutPath, L"%s\\LoLSuite - FPS Booster.lnk", desktopPath);
-	CoTaskMemFree(desktopPath);
-	wchar_t exePath[MAX_PATH + 1];
-	GetModuleFileName(nullptr, exePath, MAX_PATH + 1);
-	IShellLinkW* link = nullptr;
-	hr = CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_IShellLinkW,
-		reinterpret_cast<void**>(&link));
-	if (FAILED(hr)) return false;
-	link->SetPath(exePath);
-	link->SetArguments(L"");
-	link->SetDescription(L"FPS Booster");
-	link->SetIconLocation(exePath, 0);
-	IPersistFile* file = nullptr;
-	hr = link->QueryInterface(IID_IPersistFile, reinterpret_cast<void**>(&file));
-	if (FAILED(hr))
-	{
-		link->Release();
-		return false;
-	}
-	hr = file->Save(shortcutPath, TRUE);
-	file->Release();
-	link->Release();
-	CoUninitialize();
+	HFONT hFont = CreateUiFont(hWnd);
 
-	for (HWND h : {patch, restore, listbox})
+	for (HWND h : { patch, restore, listbox })
 		SendMessage(h, WM_SETFONT, (WPARAM)hFont, TRUE);
 
-	for (LPCWSTR s : {L"DOTA 2", L"SMITE 2", L"Metal Gear Solid Δ : Snake Eater", L"Borderlands 4", L"The Elder Scrolls IV: Oblivion Remastered", L"SILENT HILL f", L"The Outer Worlds 2", L"MineCraft : Java", L"Café Clients"})
-		SendMessage(listbox, CB_ADDSTRING, 0, (LPARAM)s);
+	constexpr LPCWSTR Games[] = {
+		L"DOTA 2",
+		L"SMITE 2",
+		L"Metal Gear Solid Δ : Snake Eater",
+		L"Borderlands 4",
+		L"The Elder Scrolls IV: Oblivion Remastered",
+		L"SILENT HILL f",
+		L"The Outer Worlds 2",
+		L"MineCraft : Java",
+		L"Café Clients"
+	};
+
+	for (auto game : Games)
+		SendMessage(listbox, CB_ADDSTRING, 0, (LPARAM)game);
 
 	SendMessage(listbox, CB_SETCURSEL, 0, 0);
 
