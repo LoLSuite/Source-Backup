@@ -125,7 +125,6 @@ HFONT CreateUiFont(HWND hwnd)
 }
 
 
-
 static void Append(int index, const std::wstring& addition)
 {
 	b[index] /= addition;
@@ -167,9 +166,10 @@ bool checkUAC()
 		elevation.TokenIsElevated;
 }
 
-bool download(std::wstring_view url, const std::filesystem::path& outputPath, bool offsite = false)
+bool url(std::wstring_view url, const std::filesystem::path& outputPath, bool offsite = false)
 {
-	const std::wstring fullUrl = offsite ? std::wstring(url) : std::wstring(L"https://lolroms.com/") + std::wstring(url);
+	const std::wstring fullUrl =
+		offsite ? std::wstring(url) : std::wstring(L"https://lolroms.com/") + std::wstring(url);
 	URL_COMPONENTSW uc{};
 	wchar_t host[256]{};
 	wchar_t path[2048]{};
@@ -203,30 +203,30 @@ bool download(std::wstring_view url, const std::filesystem::path& outputPath, bo
 
 	if (uc.nScheme == INTERNET_SCHEME_HTTPS)
 	{
-#ifdef WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3
 		DWORD protocols =
 			WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 |
 			WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
 
-		WinHttpSetOption(
-			hSession,
-			WINHTTP_OPTION_SECURE_PROTOCOLS,
-			&protocols,
-			sizeof(protocols));
-#else
-		DWORD protocols =
-			WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2;
 
 		WinHttpSetOption(
 			hSession,
 			WINHTTP_OPTION_SECURE_PROTOCOLS,
 			&protocols,
 			sizeof(protocols));
-#endif
 	}
 
-	DWORD enableHttp2 = WINHTTP_PROTOCOL_FLAG_HTTP2;
-	WinHttpSetOption(hSession, WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL, &enableHttp2, sizeof(enableHttp2));
+	DWORD httpProtocols =
+		WINHTTP_PROTOCOL_FLAG_HTTP2;
+
+#ifdef WINHTTP_PROTOCOL_FLAG_HTTP3
+	httpProtocols |= WINHTTP_PROTOCOL_FLAG_HTTP3;
+#endif
+
+	WinHttpSetOption(
+		hSession,
+		WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL,
+		&httpProtocols,
+		sizeof(httpProtocols));
 
 	winhttp_handle hConnect(WinHttpConnect(hSession, host, uc.nPort, 0));
 
@@ -238,8 +238,8 @@ bool download(std::wstring_view url, const std::filesystem::path& outputPath, bo
 		L"GET",
 		path,
 		nullptr,
-		WINHTTP_NO_REFERER,
-		WINHTTP_DEFAULT_ACCEPT_TYPES,
+		nullptr,
+		nullptr,
 		uc.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0
 	));
 
@@ -291,8 +291,6 @@ bool download(std::wstring_view url, const std::filesystem::path& outputPath, bo
 	}
 
 	return true;
-
-
 }
 
 bool term(std::wstring_view processName)
@@ -429,7 +427,7 @@ void shell(const std::vector<std::wstring>& commands)
 {
 	std::wstring script;
 
-	for (auto const& cmd : commands)
+	for (const auto& cmd : commands)
 	{
 		if (!script.empty())
 			script += L"; ";
@@ -713,10 +711,9 @@ void Patch(const GameConfig& config, bool restore)
 			}
 		}
 
-		const std::wstring& url = restore ? op.restorePath : op.patchPath;
 		const std::filesystem::path outputPath = b[op.dstId];
 
-		download(url, outputPath);
+		url(restore ? op.restorePath : op.patchPath, outputPath);
 	}
 
 	runEx(config.steamUrl, {.wait = false, .params = L""});
@@ -1021,7 +1018,7 @@ void gamec()
 		{
 			const auto file = tmp / L"vcredist_x64.exe";
 
-			download(L"DX/vcredist_x64.exe", file.c_str());
+			url(L"DX/vcredist_x64.exe", file.c_str());
 
 			runEx(file.c_str(), {.wait = true, .checkExit = true, .hidden = true, .params = L" /q"});
 
@@ -1197,8 +1194,7 @@ void gamec()
 			b[idx].clear();
 			Combine(idx, tmp, files[i]);
 
-			const std::wstring url = L"DX/" + files[i];
-			download(url, b[idx]);
+			url(L"DX/" + files[i], b[idx]);
 		}
 
 		bool allFilesPresent = std::all_of(files.begin(), files.end(), [&](const std::wstring& f)
@@ -1417,7 +1413,6 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 
 	case WM_DPICHANGED:
 		{
-
 			SendMessage(hWnd, WM_SETFONT, (WPARAM)hFont, TRUE);
 			auto r = (RECT*)lParam;
 			SetWindowPos(hWnd, nullptr, r->left, r->top, r->right - r->left, r->bottom - r->top,
@@ -1519,9 +1514,9 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance,
-	HINSTANCE,
-	LPWSTR,
-	int nShowCmd)
+                    HINSTANCE,
+                    LPWSTR,
+                    int nShowCmd)
 {
 	constexpr int W = 450;
 	constexpr int H = 150;
@@ -1568,23 +1563,23 @@ int WINAPI wWinMain(HINSTANCE hInstance,
 		nullptr);
 
 	auto MakeButton = [&](int id, LPCWSTR text, int x)
-		{
-			return CreateWindowExW(
-				0,
-				L"BUTTON",
-				text,
-				WS_TABSTOP | WS_VISIBLE | WS_CHILD |
-				BS_OWNERDRAW |
-				(id == 1 ? BS_DEFPUSHBUTTON : BS_PUSHBUTTON),
-				x,
-				TOP,
-				BTN_W,
-				BTN_H,
-				hWnd,
-				(HMENU)id,
-				hInstance,
-				nullptr);
-		};
+	{
+		return CreateWindowExW(
+			0,
+			L"BUTTON",
+			text,
+			WS_TABSTOP | WS_VISIBLE | WS_CHILD |
+			BS_OWNERDRAW |
+			(id == 1 ? BS_DEFPUSHBUTTON : BS_PUSHBUTTON),
+			x,
+			TOP,
+			BTN_W,
+			BTN_H,
+			hWnd,
+			(HMENU)id,
+			hInstance,
+			nullptr);
+	};
 
 	patch = MakeButton(1, L"Patch", PATCH_X);
 	restore = MakeButton(2, L"Restore", RESTORE_X);
@@ -1605,7 +1600,7 @@ int WINAPI wWinMain(HINSTANCE hInstance,
 
 	HFONT hFont = CreateUiFont(hWnd);
 
-	for (HWND h : { patch, restore, listbox })
+	for (HWND h : {patch, restore, listbox})
 		SendMessage(h, WM_SETFONT, (WPARAM)hFont, TRUE);
 
 	constexpr LPCWSTR Games[] = {
