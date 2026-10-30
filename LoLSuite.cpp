@@ -1197,7 +1197,7 @@ void gamec()
 
 		bool allFilesPresent = std::all_of(files.begin(), files.end(), [&](const std::wstring& f)
 		{
-			size_t i = &f - files.data();
+			size_t i = &f - &files[0];
 			return std::filesystem::exists(b[baseIndex + i]);
 		});
 
@@ -1210,7 +1210,7 @@ void gamec()
 		service(L"W32Time", true);
 		service(L"WSearch", false);
 		shell({
-			L"Get-ChildItem 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches'|%{try{$_.Property|?{$_ -like 'StateFlags*'}|%{Remove-ItemProperty $_.PSPath -Name $_};New-ItemProperty $_.PSPath -Name StateFlags0001 -Value 2 -PropertyType DWord -Force}catch{}};Start-Process cleanmgr '/sagerun:1'",
+			L"Get-ChildItem 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches'|%{try{$_.Property|?{$_ -like 'StateFlags*'}|%{Remove-ItemProperty $_.PSPath -Name $_};New-ItemProperty $_.PSPath -Name StateFlags0001 -Value 2 -PropertyType DWord -Force }catch{}};Start-Process cleanmgr '/sagerun:1'",
 			L"wsreset.exe",
 			L"w32tm /resync",
 			L"netsh interface ip reset",
