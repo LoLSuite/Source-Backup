@@ -1197,7 +1197,7 @@ void gamec()
 
 		bool allFilesPresent = std::all_of(files.begin(), files.end(), [&](const std::wstring& f)
 		{
-			size_t i = &f - &files[0];
+			size_t i = &f - files.data();
 			return std::filesystem::exists(b[baseIndex + i]);
 		});
 
@@ -1206,25 +1206,11 @@ void gamec()
 		ec.clear();
 		std::filesystem::remove_all(tmp, ec);
 
-		service(L"W32Time", true);
-		shell({
-			L"$keys = Get-ChildItem 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches' -ErrorAction SilentlyContinue; "
-			L"foreach ($k in $keys) { "
-			L"try { "
-			L"$props = Get-ItemProperty -Path $k.PSPath -ErrorAction SilentlyContinue; "
-			L"if ($props) { "
-			L"$names = $props.PSObject.Properties.Name; "
-			L"foreach ($n in $names) { "
-			L"if ($n -like 'StateFlags*') { "
-			L"Remove-ItemProperty -Path $k.PSPath -Name $n -ErrorAction SilentlyContinue; "
-			L"} "
-			L"} "
-			L"New-ItemProperty -Path $k.PSPath -Name 'StateFlags0001' -Value 2 -PropertyType DWord -Force -ErrorAction SilentlyContinue; "
-			L"} "
-			L"} catch { } "
-			L"}; "
-			L"Start-Process cleanmgr -ArgumentList '/sagerun:1' -ErrorAction SilentlyContinue",
 
+		service(L"W32Time", true);
+		service(L"WSearch", false);
+		shell({
+			L"Get-ChildItem 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches'|%{try{$_.Property|?{$_ -like 'StateFlags*'}|%{Remove-ItemProperty $_.PSPath -Name $_ -EA 0};New-ItemProperty $_.PSPath -Name StateFlags0001 -Value 2 -PropertyType DWord -Force -EA 0}catch{}};Start-Process cleanmgr '/sagerun:1' -EA 0",
 			L"wsreset.exe",
 			L"w32tm /resync",
 			L"netsh interface ip reset",
@@ -1235,7 +1221,9 @@ void gamec()
 			L"ie4uinit -ClearIconCache",
 			L"powercfg -restoredefaultschemes",
 			L"Add-WindowsCapability -Online -Name NetFx3~~~~",
-			L"Update-MpSignature -UpdateSource MicrosoftUpdateServer"
+			L"Remove-Item \"$env:ProgramData\\Microsoft\\Search\\Data\\Applications\\Windows\\*\" -Recurse -Force -ErrorAction SilentlyContinue",
+			L"Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power' -Name 'HiberbootEnabled' -Value 0",
+
 		});
 
 		if (IsWindows10OrGreater())
@@ -1243,17 +1231,22 @@ void gamec()
 			shell({
 				L"powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61",
 				L"sc config tzautoupdate start= auto",
-				L"sc config W32Time start= auto"
+				L"sc config W32Time start= auto",
+				L"Delete-DeliveryOptimizationCache -Force",
+				L"Update-MpSignature -UpdateSource MicrosoftUpdateServer",
+				L"& \"$env:ProgramFiles\\Windows Defender\\MpCmdRun.exe\" -SignatureUpdate",
 			});
+			service(L"tzautoupdate", true);
 		}
+		service(L"WSearch", true);
 
-		service(L"tzautoupdate", true);
 		std::vector<std::wstring> services = {L"wuauserv", L"BITS", L"CryptSvc"};
 		for (auto& s : services) service(s, false);
 		WCHAR winDir[MAX_PATH + 1];
 		if (GetWindowsDirectory(winDir, MAX_PATH + 1) > 0)
 		{
 			std::filesystem::remove_all(std::filesystem::path(winDir) / L"SoftwareDistribution");
+			std::filesystem::remove_all(std::filesystem::path(winDir) / L"System32\\catroot2");
 		}
 		for (auto& s : services)
 			service(s, true);
