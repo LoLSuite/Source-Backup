@@ -1228,22 +1228,7 @@ void gamec()
 		service(L"W32Time", true);
 		service(L"WSearch", false);
 		shell({
-			L"$keys = Get-ChildItem 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches' -ErrorAction SilentlyContinue; "
-			L"foreach ($k in $keys) { "
-			L"try { "
-			L"$props = Get-ItemProperty -Path $k.PSPath -ErrorAction SilentlyContinue; "
-			L"if ($props) { "
-			L"$names = $props.PSObject.Properties.Name; "
-			L"foreach ($n in $names) { "
-			L"if ($n -like 'StateFlags*') { "
-			L"Remove-ItemProperty -Path $k.PSPath -Name $n -ErrorAction SilentlyContinue; "
-			L"} "
-			L"} "
-			L"New-ItemProperty -Path $k.PSPath -Name 'StateFlags0001' -Value 2 -PropertyType DWord -Force -ErrorAction SilentlyContinue; "
-			L"} "
-			L"} catch { } "
-			L"}; "
-			L"Start-Process cleanmgr -ArgumentList '/sagerun:1' -ErrorAction SilentlyContinue",
+			L"$keys=Get-ChildItem 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches' -ErrorAction SilentlyContinue; foreach($k in $keys){ try{ $props=Get-ItemProperty -Path $k.PSPath -ErrorAction SilentlyContinue; if($props){ $names=$props.PSObject.Properties.Name; foreach($n in $names){ if($n -like 'StateFlags*'){ Remove-ItemProperty -Path $k.PSPath -Name $n -ErrorAction SilentlyContinue } } New-ItemProperty -Path $k.PSPath -Name 'StateFlags0001' -Value 2 -PropertyType DWord -Force -ErrorAction SilentlyContinue } } catch{} }; Start-Process cleanmgr -ArgumentList '/sagerun:1' -ErrorAction SilentlyContinue",
 			L"wsreset.exe",
 			L"w32tm /resync",
 			L"netsh interface ip reset",
