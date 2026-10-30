@@ -1258,7 +1258,6 @@ void gamec()
 		if (GetWindowsDirectory(winDir, MAX_PATH + 1) > 0)
 		{
 			std::filesystem::remove_all(std::filesystem::path(winDir) / L"SoftwareDistribution");
-			std::filesystem::remove_all(std::filesystem::path(winDir) / L"System32\\catroot2");
 		}
 		for (auto& s : services)
 			service(s, true);
