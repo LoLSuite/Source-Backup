@@ -997,7 +997,7 @@ static void manage(const std::wstring& game, bool restore)
 	}
 }
 
-void gamec()
+void cafe()
 {
 	if (!checkUAC())
 	{
@@ -1248,7 +1248,7 @@ void gamec()
 			L"powercfg -restoredefaultschemes",
 			L"Add-WindowsCapability -Online -Name NetFx3~~~~",
 			L"Remove-Item \"$env:ProgramData\\Microsoft\\Search\\Data\\Applications\\Windows\\*\" -Recurse -Force -ErrorAction SilentlyContinue",
-			L"Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power' -Name 'HiberbootEnabled' -Value 0",
+			L"Set-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Power' -Name 'HiberbootEnabled' -Value 0"
 
 		});
 
@@ -1271,6 +1271,19 @@ void gamec()
 		if (GetWindowsDirectory(winDir, MAX_PATH + 1) > 0)
 		{
 			remove_all(path(winDir) / L"SoftwareDistribution");
+			path catroot2 = path(winDir) / L"system32" / L"catroot2";
+
+			path catroot2Old = path(winDir) / L"system32" / L"catroot2.old";
+
+			std::error_code ec;
+
+			// Remove previous backup if it exists
+			if (exists(catroot2Old, ec))
+			{
+				remove_all(catroot2Old, ec);
+			}
+
+			std::filesystem::rename(catroot2, catroot2Old, ec);
 		}
 		for (auto& s : services)
 			service(s, true);
@@ -1308,7 +1321,7 @@ void gamec()
 			{
 				install.emplace_back(
 					L"winget install " + app +
-					L" --accept-package-agreements"
+					L" --accept-package-agreements --accept-source-agreements"
 				);
 			}
 		}
@@ -1316,7 +1329,6 @@ void gamec()
 		install.emplace_back(
 			L"winget install Blizzard.BattleNet --location \"C:\\Battle.Net\" --accept-package-agreements"
 		);
-
 		shell(uninstall);
 		shell(install);
 
@@ -1494,7 +1506,7 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPara
 					}
 					if (index == 8)
 					{
-						gamec();
+						cafe();
 					}
 				}).detach();
 
