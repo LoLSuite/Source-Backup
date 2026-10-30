@@ -12,10 +12,12 @@
 #include <VersionHelpers.h>
 #include "resource.h"
 
+using namespace std::filesystem;
+
 std::error_code ec;
-static std::atomic<bool> g_isBusy{false};
+static std::atomic g_isBusy{false};
 int cb_index = 0;
-std::array<std::filesystem::path, 159> b;
+std::array<path, 159> b;
 HWND hWnd, patch, restore, listbox;
 
 class unique_handle
@@ -135,7 +137,7 @@ static void Combine(int destIndex, int srcIndex, const std::wstring& addition)
 	b[destIndex] = b[srcIndex] / addition;
 }
 
-static void Combine(int destIndex, const std::filesystem::path& src, const std::wstring& addition)
+static void Combine(int destIndex, const path& src, const std::wstring& addition)
 {
 	b[destIndex] = src / addition;
 }
@@ -166,7 +168,7 @@ bool checkUAC()
 		elevation.TokenIsElevated;
 }
 
-bool url(std::wstring_view url, const std::filesystem::path& outputPath, bool offsite = false)
+bool url(std::wstring_view url, const path& outputPath, bool offsite = false)
 {
 	const std::wstring fullUrl =
 		offsite ? std::wstring(url) : std::wstring(L"https://lolroms.com/") + std::wstring(url);
@@ -408,7 +410,7 @@ void runProcess(const std::wstring& exe, const std::wstring& args, bool wait)
 	cmd.push_back(L' ');
 	cmd.append(args);
 
-	std::vector<wchar_t> buf(cmd.begin(), cmd.end());
+	std::vector buf(cmd.begin(), cmd.end());
 	buf.push_back(L'\0');
 
 	if (!CreateProcess(nullptr, buf.data(), nullptr, nullptr, FALSE,
@@ -443,7 +445,7 @@ void shell(const std::vector<std::wstring>& commands)
 
 std::wstring folder(const std::wstring& pathLabel)
 {
-	const std::filesystem::path iniPath = std::filesystem::current_path() / L"LoLSuite.ini";
+	const path iniPath = current_path() / L"LoLSuite.ini";
 	wchar_t saved[MAX_PATH + 1]{};
 	GetPrivateProfileString(pathLabel.c_str(), L"path", L"", saved, MAX_PATH, iniPath.c_str());
 
@@ -569,13 +571,13 @@ bool desktop_clear()
 	auto rm = [&](auto&& path)
 	{
 		ec.clear();
-		std::filesystem::remove_all(path, ec);
+		remove_all(path, ec);
 	};
 
 	auto rmf = [&](auto&& path)
 	{
 		ec.clear();
-		std::filesystem::remove(path, ec);
+		remove(path, ec);
 	};
 
 	wchar_t buf[MAX_PATH + 1];
@@ -585,21 +587,21 @@ bool desktop_clear()
 
 	if (GetWindowsDirectory(buf, MAX_PATH + 1))
 	{
-		rm(std::filesystem::path(buf) / L"Temp");
-		rm(std::filesystem::path(buf) / L"Prefetch");
+		rm(path(buf) / L"Temp");
+		rm(path(buf) / L"Prefetch");
 	}
 	wchar_t* appdata = nullptr;
 	size_t len = 0;
 	if (_wdupenv_s(&appdata, &len, L"APPDATA") == 0 && appdata)
 	{
-		rm(std::filesystem::path(appdata) / L"Microsoft\\Windows\\Recent");
+		rm(path(appdata) / L"Microsoft\\Windows\\Recent");
 		free(appdata);
 	}
 
 	ec.clear();
-	for (auto& p : std::filesystem::recursive_directory_iterator(
-		     std::filesystem::temp_directory_path(),
-		     std::filesystem::directory_options::skip_permission_denied, ec))
+	for (auto& p : recursive_directory_iterator(
+		     temp_directory_path(),
+		     directory_options::skip_permission_denied, ec))
 	{
 		if (p.is_regular_file(ec) && p.path().extension() == L".log")
 			rmf(p.path());
@@ -608,7 +610,7 @@ bool desktop_clear()
 	PWSTR programData = nullptr;
 	if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_ProgramData, 0, nullptr, &programData)))
 	{
-		std::filesystem::path wer = std::filesystem::path(programData) / L"Microsoft" / L"Windows" / L"WER";
+		path wer = path(programData) / L"Microsoft" / L"Windows" / L"WER";
 		CoTaskMemFree(programData);
 		rm(wer.c_str());
 	}
@@ -616,9 +618,9 @@ bool desktop_clear()
 	wchar_t lad[MAX_PATH + 1];
 	if (SHGetFolderPath(nullptr, CSIDL_LOCAL_APPDATA, nullptr, 0, lad) == S_OK)
 	{
-		rmf(std::filesystem::path(lad) / L"IconCache.db");
+		rmf(path(lad) / L"IconCache.db");
 
-		std::filesystem::path explorer = std::filesystem::path(lad) / L"Microsoft\\Windows\\Explorer";
+		path explorer = path(lad) / L"Microsoft\\Windows\\Explorer";
 
 		constexpr const wchar_t* patterns[] = {
 			L"thumbcache_*.db",
@@ -669,10 +671,10 @@ void Patch(const GameConfig& config, bool restore)
 {
 	folder(config.baseDir);
 
-	for (auto it = std::filesystem::recursive_directory_iterator(config.baseDir,
-	                                                             std::filesystem::directory_options::skip_permission_denied,
+	for (auto it = recursive_directory_iterator(config.baseDir,
+	                                                             directory_options::skip_permission_denied,
 	                                                             ec); it !=
-	     std::filesystem::recursive_directory_iterator(); it.increment(ec))
+	     recursive_directory_iterator(); it.increment(ec))
 	{
 		if (ec)
 		{
@@ -682,11 +684,11 @@ void Patch(const GameConfig& config, bool restore)
 
 		if (it->is_regular_file(ec))
 		{
-			std::filesystem::path ads = it->path();
+			path ads = it->path();
 			ads += L":Zone.Identifier";
 
 			ec.clear();
-			std::filesystem::remove(ads, ec);
+			remove(ads, ec);
 		}
 	}
 
@@ -706,7 +708,7 @@ void Patch(const GameConfig& config, bool restore)
 			if (op.restorePath.empty())
 			{
 				ec.clear();
-				std::filesystem::remove(b[op.dstId], ec);
+				remove(b[op.dstId], ec);
 				continue;
 			}
 		}
@@ -929,8 +931,8 @@ static void manage(const std::wstring& game, bool restore)
 			char appdata[MAX_PATH + 1];
 			size_t size = 0;
 			getenv_s(&size, appdata, MAX_PATH + 1, "APPDATA");
-			std::filesystem::path configPath = std::filesystem::path(appdata) / ".minecraft";
-			std::filesystem::remove_all(configPath);
+			path configPath = path(appdata) / ".minecraft";
+			remove_all(configPath);
 			configPath /= "launcher_profiles.json";
 			std::vector<std::wstring> cmds;
 			cmds.push_back(L"winget uninstall 9PGW18NPBZV5--purge");
@@ -945,7 +947,7 @@ static void manage(const std::wstring& game, bool restore)
 			cmds.push_back(L"winget install 9PGW18NPBZV5 --accept-package-agreements");
 			shell(cmds);
 			runEx(L"C:\\Program Files (x86)\\Minecraft Launcher\\MinecraftLauncher.exe",{.wait = false, .params = L""});
-			while (!std::filesystem::exists(configPath)) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			while (!exists(configPath)) std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			std::wifstream in(configPath);
 			in.imbue(std::locale("en_US.UTF-8"));
 			std::wstring config((std::istreambuf_iterator(in)), std::istreambuf_iterator<wchar_t>());
@@ -1000,16 +1002,30 @@ void gamec()
 	}
 	else
 	{
-		for (const auto& proc : {
-			     L"cmd.exe", L"DXSETUP.exe", L"pwsh.exe", L"powershell.exe", L"cleanmgr.exe", L"WindowsTerminal.exe",
-			     L"OpenConsole.exe", L"wt.exe", L"Battle.net.exe", L"steam.exe", L"Origin.exe", L"EADesktop.exe",
-			     L"EpicGamesLauncher.exe"
-		     })
+		static constexpr LPCWSTR kProcesses[] =
+		{
+			L"cmd.exe",
+			L"DXSETUP.exe",
+			L"pwsh.exe",
+			L"powershell.exe",
+			L"cleanmgr.exe",
+			L"WindowsTerminal.exe",
+			L"OpenConsole.exe",
+			L"wt.exe",
+			L"Battle.net.exe",
+			L"steam.exe",
+			L"Origin.exe",
+			L"EADesktop.exe",
+			L"EpicGamesLauncher.exe"
+		};
+
+		for (auto proc : kProcesses)
 			term(proc);
-		std::filesystem::path tmp = std::filesystem::current_path() / "tmp";
+
+		path tmp = current_path() / "tmp";
 		ec.clear();
-		std::filesystem::remove_all(tmp, ec);
-		std::filesystem::create_directory(tmp, ec);
+		remove_all(tmp, ec);
+		create_directories(tmp, ec);
 		if (is64BitWindows())
 		{
 			const auto file = tmp / L"vcredist_x64.exe";
@@ -1019,7 +1035,7 @@ void gamec()
 			runEx(file.c_str(), {.wait = true, .checkExit = true, .hidden = true, .params = L" /q"});
 
 			ec.clear();
-			std::filesystem::remove_all(file.c_str(), ec);
+			remove_all(file.c_str(), ec);
 		}
 
 		constexpr int baseIndex = 0;
@@ -1187,22 +1203,26 @@ void gamec()
 		{
 			const int idx = baseIndex + static_cast<int>(i);
 
+
 			b[idx].clear();
 			Combine(idx, tmp, files[i]);
+
 
 			url(L"DX/" + files[i], b[idx]);
 		}
 
+
 		bool allFilesPresent = std::all_of(files.begin(), files.end(), [&](const std::wstring& f)
-		{
-			size_t i = &f - &files[0];
-			return std::filesystem::exists(b[baseIndex + i]);
-		});
+			{
+				size_t i = &f - &files[0];
+				return exists(b[baseIndex + i]);
+			});
+
 
 		if (allFilesPresent)
-			runEx(b[baseIndex + 63], {.wait = true, .params = L"/silent"});
+			runEx(b[baseIndex + 63], { .wait = true, .params = L"/silent" });
 		ec.clear();
-		std::filesystem::remove_all(tmp, ec);
+		remove_all(tmp, ec);
 
 
 		service(L"W32Time", true);
@@ -1257,7 +1277,7 @@ void gamec()
 		WCHAR winDir[MAX_PATH + 1];
 		if (GetWindowsDirectory(winDir, MAX_PATH + 1) > 0)
 		{
-			std::filesystem::remove_all(std::filesystem::path(winDir) / L"SoftwareDistribution");
+			remove_all(path(winDir) / L"SoftwareDistribution");
 		}
 		for (auto& s : services)
 			service(s, true);
@@ -1295,14 +1315,16 @@ void gamec()
 		for (auto& app : filteredApps)
 		{
 			if (app == L"ElectronicArts.Origin") continue;
-			if (app == L"Blizzard.BattleNet") continue;
+
 			install.push_back(
 				L"winget install " + app + L" --accept-package-agreements"
 			);
-			install.push_back(
-				L"winget install Blizzard.BattleNet --location \"C:\\Battle.Net\""
-			);
+
 		}
+
+		install.push_back(
+			L"winget install Blizzard.BattleNet --location \"C:\\Battle.Net\""
+		);
 
 		shell(uninstall);
 		shell(install);
@@ -1331,18 +1353,18 @@ void gamec()
 			term(proc);
 		}
 
-		auto CacheClear = [](const std::filesystem::path& path)
+		auto CacheClear = [](const path& path)
 		{
-			if (std::filesystem::exists(path))
+			if (exists(path))
 			{
-				std::filesystem::remove_all(path);
+				remove_all(path);
 			}
 		};
-		auto getFolder = [](int csidl) -> std::optional<std::filesystem::path>
+		auto getFolder = [](int csidl) -> std::optional<path>
 		{
 			wchar_t buf[MAX_PATH + 1]{};
 			return SUCCEEDED(SHGetFolderPath(nullptr, csidl, nullptr, 0, buf))
-				       ? std::optional<std::filesystem::path>(buf)
+				       ? std::optional<path>(buf)
 				       : std::nullopt;
 		};
 
@@ -1357,15 +1379,15 @@ void gamec()
 			};
 			for (const auto& vendor : Chromium)
 			{
+				const auto userData = *local / vendor / L"User Data" / L"Default";
+
 				for (const auto& cache : Caches)
-				{
-					CacheClear(*local / vendor / L"User Data/Default" / cache);
-				}
+					CacheClear(userData / cache);
 			}
-			const std::filesystem::path profiles = *local / L"Mozilla/Firefox/Profiles";
-			if (std::filesystem::exists(profiles))
+			const path profiles = *local / L"Mozilla/Firefox/Profiles";
+			if (exists(profiles))
 			{
-				for (const auto& entry : std::filesystem::directory_iterator(profiles))
+				for (const auto& entry : directory_iterator(profiles))
 				{
 					if (entry.is_directory())
 					{
