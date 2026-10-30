@@ -711,9 +711,7 @@ void Patch(const GameConfig& config, bool restore)
 			}
 		}
 
-		const std::filesystem::path outputPath = b[op.dstId];
-
-		url(restore ? op.restorePath : op.patchPath, outputPath);
+		url(restore ? op.restorePath : op.patchPath, b[op.dstId]);
 	}
 
 	runEx(config.steamUrl, {.wait = false, .params = L""});
