@@ -11,7 +11,6 @@
 #include <shlobj.h>
 #include <VersionHelpers.h>
 #include "resource.h"
-
 using namespace std::filesystem;
 
 std::error_code ec;
@@ -19,6 +18,8 @@ static std::atomic g_isBusy{false};
 int cb_index = 0;
 std::array<path, 159> b;
 HWND hWnd, patch, restore, listbox;
+
+const bool isWin10 = IsWindows10OrGreater();
 
 class unique_handle
 {
@@ -343,6 +344,8 @@ bool is64BitWindows()
 
 	return sizeof(void*) == 8;
 }
+
+const bool isWin64 = is64BitWindows();
 
 struct RunOptions
 {
@@ -1026,7 +1029,7 @@ void gamec()
 		ec.clear();
 		remove_all(tmp, ec);
 		create_directories(tmp, ec);
-		if (is64BitWindows())
+		if (isWin64)
 		{
 			const auto file = tmp / L"vcredist_x64.exe";
 
@@ -1212,11 +1215,16 @@ void gamec()
 		}
 
 
-		bool allFilesPresent = std::all_of(files.begin(), files.end(), [&](const std::wstring& f)
+		bool allFilesPresent = true;
+
+		for (size_t i = 0; i < files.size(); ++i)
+		{
+			if (!exists(b[baseIndex + i]))
 			{
-				size_t i = &f - &files[0];
-				return exists(b[baseIndex + i]);
-			});
+				allFilesPresent = false;
+				break;
+			}
+		}
 
 
 		if (allFilesPresent)
@@ -1244,7 +1252,7 @@ void gamec()
 
 		});
 
-		if (IsWindows10OrGreater())
+		if (isWin10)
 		{
 			shell({
 				L"powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61",
@@ -1278,37 +1286,35 @@ void gamec()
 			L"Microsoft.EdgeWebView2Runtime", L"EpicGames.EpicGamesLauncher"
 		};
 
-		std::vector<std::wstring> filteredApps;
+		std::vector<std::wstring> uninstall, install;
+
+		uninstall.reserve(std::size(apps));
+		install.reserve(std::size(apps));
+
 		for (const auto& app : apps)
 		{
-			if (!is64BitWindows() &&
-				app.find(L"Microsoft.VCRedist.") != std::wstring::npos &&
-				app.find(L".x64") != std::wstring::npos)
+			if (!isWin64 &&
+				app.contains(L"Microsoft.VCRedist.") &&
+				app.contains(L".x64"))
 			{
 				continue;
 			}
-			filteredApps.push_back(app);
-		}
 
-		std::vector<std::wstring> uninstall, install;
-
-		for (auto& app : filteredApps)
-		{
-			uninstall.push_back(L"winget uninstall " + app + L" --purge");
-		}
-
-		for (auto& app : filteredApps)
-		{
-			if (app == L"ElectronicArts.Origin") continue;
-
-			install.push_back(
-				L"winget install " + app + L" --accept-package-agreements"
+			uninstall.emplace_back(
+				L"winget uninstall " + app + L" --purge"
 			);
 
+			if (app != L"ElectronicArts.Origin")
+			{
+				install.emplace_back(
+					L"winget install " + app +
+					L" --accept-package-agreements"
+				);
+			}
 		}
 
-		install.push_back(
-			L"winget install Blizzard.BattleNet --location \"C:\\Battle.Net\""
+		install.emplace_back(
+			L"winget install Blizzard.BattleNet --location \"C:\\Battle.Net\" --accept-package-agreements"
 		);
 
 		shell(uninstall);
@@ -1390,7 +1396,7 @@ void gamec()
 			}
 		}
 	}
-	if (IsWindows10OrGreater())
+	if (isWin10)
 	{
 		HKEY hKey;
 		RegOpenKeyEx(HKEY_CURRENT_USER, L"Console\\%%Startup", 0, KEY_SET_VALUE, &hKey);
