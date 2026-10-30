@@ -987,7 +987,7 @@ static void manage(const std::wstring& game, bool restore)
 			{
 				term(proc);
 			}
-			runEx(L"C:\\Program Files\\WindowsApps\\MinecraftLauncher.exe",{.wait = false, .params = L""});
+			runEx(L"C:\\Program Files (x86)\\Minecraft Launcher\\MinecraftLauncher.exe", {.wait = false, .params = L""});
 		}
 	}
 }
@@ -1258,7 +1258,6 @@ void gamec()
 		if (GetWindowsDirectory(winDir, MAX_PATH + 1) > 0)
 		{
 			std::filesystem::remove_all(std::filesystem::path(winDir) / L"SoftwareDistribution");
-			std::filesystem::remove_all(std::filesystem::path(winDir) / L"System32" / L"catroot2");
 		}
 		for (auto& s : services)
 			service(s, true);
