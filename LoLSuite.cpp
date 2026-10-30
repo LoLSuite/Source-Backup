@@ -933,19 +933,18 @@ static void manage(const std::wstring& game, bool restore)
 			std::filesystem::remove_all(configPath);
 			configPath /= "launcher_profiles.json";
 			std::vector<std::wstring> cmds;
-			cmds.push_back(L"winget uninstall Mojang.MinecraftLauncher --purge");
+			cmds.push_back(L"winget uninstall 9PGW18NPBZV5--purge");
 			for (auto* v : {
 				     L"JavaRuntimeEnvironment", L"JDK.17", L"JDK.18", L"JDK.19", L"JDK.20", L"JDK.21", L"JDK.22",
-				     L"JDK.23", L"JDK.24", L"JDK.25", L"Oracle.JDK.26"
+				     L"JDK.23", L"JDK.24", L"JDK.25", L"Oracle.JDK.26", L"Oracle.JDK.27"
 			     })
 			{
 				cmds.push_back(L"winget uninstall Oracle." + std::wstring(v) + L" --purge");
 			}
-			cmds.push_back(L"winget install Oracle.JDK.26 --accept-package-agreements");
-			cmds.push_back(L"winget install Mojang.MinecraftLauncher");
+			cmds.push_back(L"winget install Oracle.JDK.27 --accept-package-agreements");
+			cmds.push_back(L"winget install 9PGW18NPBZV5 --accept-package-agreements");
 			shell(cmds);
-			runEx(L"C:\\Program Files (x86)\\Minecraft Launcher\\MinecraftLauncher.exe",
-			      {.wait = false, .params = L""});
+			runEx(L"C:\\Program Files (x86)\\Minecraft Launcher\\MinecraftLauncher.exe",{.wait = false, .params = L""});
 			while (!std::filesystem::exists(configPath)) std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			std::wifstream in(configPath);
 			in.imbue(std::locale("en_US.UTF-8"));
@@ -960,7 +959,7 @@ static void manage(const std::wstring& game, bool restore)
 					std::wstring::npos)
 					updated += line + L"\n";
 			}
-			std::wstring jdkpath = L"C:\\\\Program Files\\\\Java\\\\jdk-26.0.2\\\\bin\\\\javaw.exe";
+			std::wstring jdkpath = L"C:\\\\Program Files\\\\Java\\\\jdk-27.0.1\\\\bin\\\\javaw.exe";
 			for (auto& type : {L"\"type\" : \"latest-release\"", L"\"type\" : \"latest-snapshot\""})
 			{
 				size_t pos = updated.find(type);
@@ -988,8 +987,7 @@ static void manage(const std::wstring& game, bool restore)
 			{
 				term(proc);
 			}
-			runEx(L"C:\\Program Files (x86)\\Minecraft Launcher\\MinecraftLauncher.exe",
-			      {.wait = false, .params = L""});
+			runEx(L"C:\\Program Files\\WindowsApps\\MinecraftLauncher.exe",{.wait = false, .params = L""});
 		}
 	}
 }
@@ -1210,7 +1208,22 @@ void gamec()
 		service(L"W32Time", true);
 		service(L"WSearch", false);
 		shell({
-			L"Get-ChildItem 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches'|%{try{$_.Property|?{$_ -like 'StateFlags*'}|%{Remove-ItemProperty $_.PSPath -Name $_};New-ItemProperty $_.PSPath -Name StateFlags0001 -Value 2 -PropertyType DWord -Force }catch{}};Start-Process cleanmgr '/sagerun:1'",
+			L"$keys = Get-ChildItem 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VolumeCaches' -ErrorAction SilentlyContinue; "
+			L"foreach ($k in $keys) { "
+			L"try { "
+			L"$props = Get-ItemProperty -Path $k.PSPath -ErrorAction SilentlyContinue; "
+			L"if ($props) { "
+			L"$names = $props.PSObject.Properties.Name; "
+			L"foreach ($n in $names) { "
+			L"if ($n -like 'StateFlags*') { "
+			L"Remove-ItemProperty -Path $k.PSPath -Name $n -ErrorAction SilentlyContinue; "
+			L"} "
+			L"} "
+			L"New-ItemProperty -Path $k.PSPath -Name 'StateFlags0001' -Value 2 -PropertyType DWord -Force -ErrorAction SilentlyContinue; "
+			L"} "
+			L"} catch { } "
+			L"}; "
+			L"Start-Process cleanmgr -ArgumentList '/sagerun:1' -ErrorAction SilentlyContinue",
 			L"wsreset.exe",
 			L"w32tm /resync",
 			L"netsh interface ip reset",
@@ -1234,7 +1247,6 @@ void gamec()
 				L"sc config W32Time start= auto",
 				L"Delete-DeliveryOptimizationCache -Force",
 				L"Update-MpSignature -UpdateSource MicrosoftUpdateServer",
-				L"& \"$env:ProgramFiles\\Windows Defender\\MpCmdRun.exe\" -SignatureUpdate",
 			});
 			service(L"tzautoupdate", true);
 		}
