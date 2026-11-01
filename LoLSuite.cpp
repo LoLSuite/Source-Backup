@@ -6,6 +6,7 @@
 #include <fstream>
 #include <thread>
 #include <array>
+#include <future>
 #include <TlHelp32.h>
 #include <shellapi.h>
 #include <shlobj.h>
@@ -15,9 +16,9 @@ using namespace std::filesystem;
 
 std::error_code ec;
 static std::atomic g_isBusy{false};
-int cb_index = 0;
-std::array<path, 159> b;
-HWND hWnd, patch, restore, listbox;
+static int cb_index = 0;
+static std::array<path, 159> b;
+static HWND hWnd, patch, restore, listbox;
 
 bool is64BitWindows()
 {
@@ -115,143 +116,193 @@ unique_resource<
 	WinHttpCloseHandle,
 	valid_internet>;
 
-bool url(
-	std::wstring_view url,
-	const path& outPath,
-	bool offsite = false)
+HINTERNET HttpSession()
 {
-	const std::wstring full =
-		offsite
-		? std::wstring(url)
-		: L"https://lolroms.com/" + std::wstring(url);
+	static unique_internet session(
+		[]()
+		{
+			auto h =
+				WinHttpOpen(
+					L"LoLSuite/2.0",
+					WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+					nullptr,
+					nullptr,
+					0);
 
-	URL_COMPONENTSW uc{
-		.dwStructSize = sizeof(uc)
-	};
+			if (!h)
+				return h;
 
-	wchar_t host[256]{};
-	wchar_t uri[2048]{};
-
-	uc.lpszHostName = host;
-	uc.dwHostNameLength = _countof(host);
-	uc.lpszUrlPath = uri;
-	uc.dwUrlPathLength = _countof(uri);
-
-	if (!WinHttpCrackUrl(full.c_str(), 0, 0, &uc))
-		return false;
-
-	if (!*uri)
-		wcscpy_s(uri, L"/");
-
-	unique_internet session(
-		WinHttpOpen(
-			L"LoLSuite/1.0",
-			WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-			nullptr,
-			nullptr,
-			0));
-
-	if (!session)
-		return false;
-
-	if (uc.nScheme == INTERNET_SCHEME_HTTPS)
-	{
-		DWORD tls =
-			WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2 |
-			WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3;
-
-		WinHttpSetOption(
-			session,
-			WINHTTP_OPTION_SECURE_PROTOCOLS,
-			&tls,
-			sizeof(tls));
-	}
-
-	DWORD proto =
-		WINHTTP_PROTOCOL_FLAG_HTTP2;
+			DWORD proto =
+				WINHTTP_PROTOCOL_FLAG_HTTP2;
 
 #ifdef WINHTTP_PROTOCOL_FLAG_HTTP3
-	proto |= WINHTTP_PROTOCOL_FLAG_HTTP3;
+			proto |= WINHTTP_PROTOCOL_FLAG_HTTP3;
 #endif
 
-	WinHttpSetOption(
-		session,
-		WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL,
-		&proto,
-		sizeof(proto));
+			WinHttpSetOption(
+				h,
+				WINHTTP_OPTION_ENABLE_HTTP_PROTOCOL,
+				&proto,
+				sizeof(proto));
 
-	unique_internet connect(
-		WinHttpConnect(
-			session,
-			host,
-			uc.nPort,
-			0));
+			return h;
+		}());
 
-	if (!connect)
-		return false;
+	return session.get();
+}
 
-	unique_internet request(
-		WinHttpOpenRequest(
-			connect,
-			L"GET",
-			uri,
-			nullptr,
-			nullptr,
-			nullptr,
-			uc.nScheme == INTERNET_SCHEME_HTTPS
-			? WINHTTP_FLAG_SECURE
-			: 0));
-
-	if (!request)
-		return false;
-
-	if (!WinHttpSendRequest(
-		request,
-		nullptr,
-		0,
-		nullptr,
-		0,
-		0,
-		0) ||
-		!WinHttpReceiveResponse(
-			request,
-			nullptr))
-	{
-		return false;
-	}
-
-	std::ofstream out(
-		outPath,
-		std::ios::binary | std::ios::trunc);
-
-	if (!out)
-		return false;
-
-	std::array<char, 8192> buf;
-
-	for (DWORD read{};;)
-	{
-		if (!WinHttpReadData(
-			request,
-			buf.data(),
-			static_cast<DWORD>(buf.size()),
-			&read))
+[[nodiscard]]
+std::future<bool> url(
+	std::wstring url,
+	path outPath,
+	bool offsite = false)
+{
+	return std::async(
+		std::launch::async,
+		[url = std::move(url),
+		outPath = std::move(outPath),
+		offsite]() -> bool
 		{
-			return false;
-		}
+			std::wstring full;
 
-		if (!read)
-			break;
+			if (offsite)
+			{
+				full = url;
+			}
+			else
+			{
+				full.reserve(20 + url.size());
+				full = L"https://lolroms.com/";
+				full += url;
+			}
 
-		out.write(
-			buf.data(),
-			static_cast<std::streamsize>(read));
+			URL_COMPONENTSW uc
+			{
+				.dwStructSize = sizeof(uc)
+			};
 
-		if (!out)
-			return false;
-	}
+			wchar_t host[256]{};
+			wchar_t uri[2048]{};
 
-	return true;
+			uc.lpszHostName = host;
+			uc.dwHostNameLength = _countof(host);
+
+			uc.lpszUrlPath = uri;
+			uc.dwUrlPathLength = _countof(uri);
+
+			if (!WinHttpCrackUrl(
+				full.c_str(),
+				0,
+				0,
+				&uc))
+			{
+				return false;
+			}
+
+			if (!*uri)
+				wcscpy_s(uri, L"/");
+
+			unique_internet connect(
+				WinHttpConnect(
+					HttpSession(),
+					host,
+					uc.nPort,
+					0));
+
+			if (!connect)
+				return false;
+
+			unique_internet request(
+				WinHttpOpenRequest(
+					connect.get(),
+					L"GET",
+					uri,
+					nullptr,
+					nullptr,
+					nullptr,
+					uc.nScheme ==
+					INTERNET_SCHEME_HTTPS
+					? WINHTTP_FLAG_SECURE
+					: 0));
+
+			if (!request)
+				return false;
+
+			if (!WinHttpSendRequest(
+				request.get(),
+				nullptr,
+				0,
+				nullptr,
+				0,
+				0,
+				0))
+			{
+				return false;
+			}
+
+			if (!WinHttpReceiveResponse(
+				request.get(),
+				nullptr))
+			{
+				return false;
+			}
+
+			DWORD status{};
+			DWORD len = sizeof(status);
+
+			if (!WinHttpQueryHeaders(
+				request.get(),
+				WINHTTP_QUERY_STATUS_CODE |
+				WINHTTP_QUERY_FLAG_NUMBER,
+				nullptr,
+				&status,
+				&len,
+				nullptr))
+			{
+				return false;
+			}
+
+			if (status != HTTP_STATUS_OK)
+				return false;
+
+			std::ofstream out(
+				outPath,
+				std::ios::binary |
+				std::ios::trunc);
+
+			if (!out)
+				return false;
+
+			std::array<char, 262144> buffer;
+
+			for (;;)
+			{
+				DWORD bytesRead{};
+
+				if (!WinHttpReadData(
+					request.get(),
+					buffer.data(),
+					static_cast<DWORD>(
+						buffer.size()),
+					&bytesRead))
+				{
+					return false;
+				}
+
+				if (bytesRead == 0)
+					break;
+
+				out.write(
+					buffer.data(),
+					static_cast<std::streamsize>(
+						bytesRead));
+
+				if (!out)
+					return false;
+			}
+
+			return true;
+		});
 }
 
 HFONT CreateUiFont(HWND hwnd)
@@ -389,8 +440,16 @@ void runProcess(
 	STARTUPINFOW si{ sizeof(si) };
 	PROCESS_INFORMATION pi{};
 
-	std::wstring cmd =
-		std::move(exe) + L' ' + std::move(args);
+	std::wstring cmd;
+
+	cmd.reserve(
+		exe.size() +
+		args.size() + 4);
+
+	cmd += L'"';
+	cmd += exe;
+	cmd += L"\" ";
+	cmd += args;
 
 	cmd.push_back(L'\0');
 
@@ -418,7 +477,15 @@ std::wstring join(
 	const std::vector<std::wstring>& v,
 	std::wstring_view sep)
 {
+	size_t total = 0;
+
+	for (const auto& s : v)
+		total += s.size();
+
+	total += (v.size() - 1) * sep.size();
+
 	std::wstring r;
+	r.reserve(total);
 
 	for (size_t i = 0; i < v.size(); ++i)
 	{
