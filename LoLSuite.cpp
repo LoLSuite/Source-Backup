@@ -1291,10 +1291,16 @@ void cafe()
 				break;
 			}
 		}
+		auto it = std::find(files.begin(), files.end(), L"DXSETUP.exe");
 
+			if (allFilesPresent && it != files.end())
+		{
+			size_t setupIndex = std::distance(files.begin(), it);
 
-		if (allFilesPresent)
-			runEx(b[baseIndex + 63], { .wait = true, .params = L"/silent" });
+			runEx(
+				b[baseIndex + setupIndex],
+				{ .wait = true, .params = L"/silent" });
+		}
 		ec.clear();
 		remove_all(tmp, ec);
 
@@ -1388,11 +1394,11 @@ void cafe()
 				L"winget install " + app + L" --accept-package-agreements"
 			);
 
-		}
+			install.push_back(
+				L"winget install Blizzard.BattleNet --location \"C:\\Battle.Net\" --accept-package-agreements"
+			);
 
-		install.push_back(
-			L"winget install Blizzard.BattleNet --location \"C:\\Battle.Net\""
-		);
+		}
 
 		shell(uninstall);
 		shell(install);
@@ -1473,14 +1479,35 @@ void cafe()
 			}
 		}
 	}
-	HKEY hKey;
-	RegOpenKeyEx(HKEY_CURRENT_USER, L"Console\\%%Startup", 0, KEY_SET_VALUE, &hKey);
-	auto value = L"WindowsTerminal";
-	RegSetValueEx(hKey, L"DelegationConsole", 0, REG_SZ, reinterpret_cast<const BYTE*>(value),
-		(wcslen(value) + 1) * sizeof(wchar_t));
-	RegSetValueEx(hKey, L"DelegationTerminal", 0, REG_SZ, reinterpret_cast<const BYTE*>(value),
-		(wcslen(value) + 1) * sizeof(wchar_t));
-	RegCloseKey(hKey);
+	HKEY hKey = nullptr;
+
+	if (RegOpenKeyExW(
+		HKEY_CURRENT_USER,
+		L"Console\\%%Startup",
+		0,
+		KEY_SET_VALUE,
+		&hKey) == ERROR_SUCCESS)
+	{
+		const wchar_t* value = L"WindowsTerminal";
+
+		RegSetValueExW(
+			hKey,
+			L"DelegationConsole",
+			0,
+			REG_SZ,
+			reinterpret_cast<const BYTE*>(value),
+			static_cast<DWORD>((wcslen(value) + 1) * sizeof(wchar_t)));
+
+		RegSetValueExW(
+			hKey,
+			L"DelegationTerminal",
+			0,
+			REG_SZ,
+			reinterpret_cast<const BYTE*>(value),
+			static_cast<DWORD>((wcslen(value) + 1) * sizeof(wchar_t)));
+
+		RegCloseKey(hKey);
+	}
 }
 
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
