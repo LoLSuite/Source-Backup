@@ -259,7 +259,7 @@ HFONT CreateUiFont(HWND hwnd)
 	return CreateFontW(
 		-MulDiv(16, GetDpiForWindow(hwnd), 96),
 		0, 0, 0,
-		FW_MEDIUM,
+		400,
 		FALSE, FALSE, FALSE,
 		DEFAULT_CHARSET,
 		OUT_OUTLINE_PRECIS,
